@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "389409259766",
+    "project_id": "emailapp-35b26",
+    "storage_bucket": "emailapp-35b26.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:389409259766:android:90bbf394177ef30ba32cd7",
+        "android_client_info": {
+          "package_name": "com.example.testabc"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "389409259766-burqii6citgv8k0j73pjoeu3i4busdh7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSly8JJYL7nrQXFZq6BhRgcdlgQni9h5s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "389409259766-burqii6citgv8k0j73pjoeu3i4busdh7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

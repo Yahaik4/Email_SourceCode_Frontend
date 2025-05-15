@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'core/routes.dart';
 import 'utils/session_manager.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final bool isLoggedIn = await SessionManager.isLoggedIn();
-  runApp(MyApp(isLoggedIn: isLoggedIn));
+  runApp(MyApp(isLoggedIn: false));
 }
 
 class MyApp extends StatelessWidget {
