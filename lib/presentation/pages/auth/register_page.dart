@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:testabc/config/api_config.dart';
 import 'dart:convert';
-import 'package:testabc/utils/session_manager.dart';
-import 'package:testabc/widgets/custom_snackbar.dart';
+import 'package:testabc/utils/auth_utils.dart';
+
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({Key? key}) : super(key: key);
@@ -15,7 +15,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
-  final _phoneNumberController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _emailController = TextEditingController();
@@ -31,49 +31,59 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/api/auth/register'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'email': _emailController.text.trim(),
-              'password': _passwordController.text.trim(),
-              'username': _usernameController.text.trim(),
-              'phoneNumber': _phoneNumberController.text.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      // Lấy dữ liệu từ form
+      final String email = _emailController.text.trim();
+      final String username = _usernameController.text.trim();
+      final String phoneNumberRaw = _phoneController.text.trim();
+      final String password = _passwordController.text.trim();
 
-      print('Request sent to: ${response.request?.url}');
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
+      // Chuẩn hóa phoneNumber
+      String phoneNumber = phoneNumberRaw.startsWith('+') ? phoneNumberRaw : '+84$phoneNumberRaw';
 
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        print("Registered successfully: ${responseData['msg']}");
-        // Hiển thị SnackBar thông báo đăng ký thành công
-        CustomSnackBar.show(
-          context,
-          message: 'Register succesfully',
-          backgroundColor: Colors.green.withOpacity(0.9),
-          borderColor: const Color(0xFF9146FF),
-        );
-        // Chuyển hướng về trang đăng nhập sau khi hiển thị thông báo
-        await Future.delayed(Duration(seconds: 1));
-        Navigator.pushReplacementNamed(context, '/login');
+      // Gọi API /api/users/email để kiểm tra email đã tồn tại chưa
+      final validateResponse = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/email'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      if (validateResponse.statusCode == 200) {
+        final responseData = jsonDecode(validateResponse.body);
+        // Kiểm tra nếu email đã tồn tại (giả định metadata chứa thông tin người dùng nếu email đã đăng ký)
+        if (responseData['metadata'] != null && responseData['metadata']['id'] != null) {
+          setState(() {
+            _errorMessage = 'This email is already registered';
+            _isLoading = false;
+          });
+        } else {
+          // Email chưa tồn tại, tiếp tục gửi OTP
+          await AuthUtils.startPhoneAuth(
+            context: context,
+            phoneNumber: phoneNumber,
+            userId: '',
+            route: '/otp',
+            arguments: {
+              'phoneNumber': phoneNumber,
+              'email': email,
+              'username': username,
+              'password': password,
+            },
+            setLoading: (value) => setState(() => _isLoading = value),
+          );
+        }
       } else {
-        final responseData = jsonDecode(response.body);
+        // Xử lý lỗi từ API (ví dụ: 400, 500)
         setState(() {
-          _errorMessage = responseData['msg'] ?? 'Registration failed';
+          _errorMessage = jsonDecode(validateResponse.body)['msg'] ?? 'Validation error';
+          _isLoading = false;
         });
       }
     } catch (e) {
-      print('Error during registration: $e');
+      // Xử lý lỗi nếu gọi API thất bại
       setState(() {
-        _errorMessage = 'An error occurred: $e';
-      });
-    } finally {
-      setState(() {
+        _errorMessage = 'Error: $e';
         _isLoading = false;
       });
     }
@@ -82,7 +92,7 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void dispose() {
     _usernameController.dispose();
-    _phoneNumberController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _emailController.dispose();
@@ -97,38 +107,27 @@ class _RegisterPageState extends State<RegisterPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1A1A2E),
-              Color(0xFF0F0F1A),
-            ],
+            colors: [Color(0xFF1A1A2E), Color(0xFF0F0F1A)],
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SizedBox(height: 50), // Khoảng cách từ đỉnh màn hình đến logo
-            Image.asset(
-              'assets/logo.png',
-              height: 200, // Kích thước logo giống với LoginPage
-              width: 200,
-              fit: BoxFit.contain,
-            ),
+            const SizedBox(height: 50),
+            Image.asset('assets/logo.png', height: 200, width: 200, fit: BoxFit.contain),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Card(
                   color: const Color(0xFF26263B),
                   elevation: 8,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: Form(
                       key: _formKey,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Text(
                             "Sign Up",
@@ -160,18 +159,10 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               filled: true,
                               fillColor: const Color(0xFF1A1A2E),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 16,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                             ),
                             style: const TextStyle(color: Colors.white),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your username';
-                              }
-                              return null;
-                            },
+                            validator: (value) => value == null || value.isEmpty ? 'Please enter your username' : null,
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -194,17 +185,12 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               filled: true,
                               fillColor: const Color(0xFF1A1A2E),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 16,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                             ),
                             style: const TextStyle(color: Colors.white),
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your email';
-                              }
+                              if (value == null || value.isEmpty) return 'Please enter your email';
                               if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                                 return 'Please enter a valid email';
                               }
@@ -213,9 +199,9 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
-                            controller: _phoneNumberController,
+                            controller: _phoneController,
                             decoration: InputDecoration(
-                              hintText: 'Phone Number',
+                              hintText: 'Phone Number (e.g., 0987654321)',
                               prefixIcon: const Icon(Icons.phone, color: Color(0xFF9146FF)),
                               hintStyle: TextStyle(color: Colors.grey.shade500),
                               border: OutlineInputBorder(
@@ -232,20 +218,13 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               filled: true,
                               fillColor: const Color(0xFF1A1A2E),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 16,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                             ),
                             style: const TextStyle(color: Colors.white),
                             keyboardType: TextInputType.phone,
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your phone number';
-                              }
-                              if (!RegExp(r'^\+?\d{10,12}$').hasMatch(value)) {
-                                return 'Please enter a valid phone number';
-                              }
+                              if (value == null || value.isEmpty) return 'Please enter your phone number';
+                              if (!RegExp(r'^\d{10}$').hasMatch(value)) return 'Please enter a valid 10-digit phone number';
                               return null;
                             },
                           ),
@@ -270,26 +249,17 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               filled: true,
                               fillColor: const Color(0xFF1A1A2E),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 16,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                             ),
                             style: const TextStyle(color: Colors.white),
                             obscureText: true,
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter your password';
-                              }
-                              if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
-                              }
+                              if (value == null || value.isEmpty) return 'Please enter your password';
+                              if (value.length < 6) return 'Password must be at least 6 characters';
                               if (!RegExp(r'(?=.*[A-Z])').hasMatch(value)) {
                                 return 'Password must contain at least one uppercase letter';
                               }
-                              if (!RegExp(r'(?=.*\d)').hasMatch(value)) {
-                                return 'Password must contain at least one number';
-                              }
+                              if (!RegExp(r'(?=.*\d)').hasMatch(value)) return 'Password must contain at least one number';
                               return null;
                             },
                           ),
@@ -314,20 +284,13 @@ class _RegisterPageState extends State<RegisterPage> {
                               ),
                               filled: true,
                               fillColor: const Color(0xFF1A1A2E),
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 14,
-                                horizontal: 16,
-                              ),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
                             ),
                             style: const TextStyle(color: Colors.white),
                             obscureText: true,
                             validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please confirm your password';
-                              }
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match';
-                              }
+                              if (value == null || value.isEmpty) return 'Please confirm your password';
+                              if (value != _passwordController.text) return 'Passwords do not match';
                               return null;
                             },
                           ),
@@ -337,11 +300,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Text(
                                 _errorMessage!,
-                                style: TextStyle(
-                                  color: Colors.red.shade400,
-                                  fontSize: 14,
-                                  fontFamily: 'Inter',
-                                ),
+                                style: TextStyle(color: Colors.red.shade400, fontSize: 14, fontFamily: 'Inter'),
                               ),
                             ),
                           ElevatedButton(
@@ -350,9 +309,7 @@ class _RegisterPageState extends State<RegisterPage> {
                               backgroundColor: const Color(0xFF9146FF),
                               foregroundColor: Colors.white,
                               minimumSize: const Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               elevation: 2,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                             ),
@@ -360,35 +317,20 @@ class _RegisterPageState extends State<RegisterPage> {
                                 ? const SizedBox(
                                     height: 20,
                                     width: 20,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                   )
                                 : const Text(
                                     'Sign Up',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      fontFamily: 'Inter',
-                                    ),
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
                                   ),
                           ),
                           const SizedBox(height: 12),
                           TextButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(context, '/login');
-                            },
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFF9146FF),
-                            ),
+                            onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                            style: TextButton.styleFrom(foregroundColor: const Color(0xFF9146FF)),
                             child: const Text(
                               'Already have an account? Sign In',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'Inter',
-                              ),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
                             ),
                           ),
                         ],
