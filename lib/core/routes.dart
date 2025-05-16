@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:testabc/presentation/pages/auth/otp_page.dart';
-import 'package:testabc/presentation/pages/auth/register_page.dart';
+import '../presentation/pages/auth/otp_page.dart';
+import '../presentation/pages/auth/register_page.dart';
 import '../presentation/pages/auth/login_page.dart';
 import '../presentation/pages/home/home_page.dart';
+import '../presentation/screens/profile_screen.dart';
 
 final Map<String, WidgetBuilder> appRoutes = {
-  '/login': (context) => LoginPage(),
-  '/home': (context) => HomePage(),
+  '/login': (context) => const LoginPage(),
+  '/home': (context) => const HomePage(),
   '/register': (context) => const RegisterPage(),
   '/otp': (context) => const OtpPage(),
+  '/profile': (context) => const ProfileScreen(),
 };
