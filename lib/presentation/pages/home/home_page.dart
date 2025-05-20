@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:testabc/core/models/email_model.dart';
+import 'package:testabc/presentation/screens/email_detail_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -12,12 +14,6 @@ class _HomePageState extends State<HomePage> {
   int _selectedDrawerIndex = 0;
 
   final List<Map<String, String>> emails = [
-    {
-      "sender": "Hệ thống mail - Môn kỹ năng",
-      "title": "THÔNG BÁO THỜI GIAN HỌC ONLINE",
-      "subject": "THÔNG BÁO THỜI GIAN HỌC ONLINE",
-      "time": "12:14"
-    },
     {
       "sender": "Hệ thống mail - Môn kỹ năng",
       "title": "THÔNG BÁO THỜI GIAN HỌC ONLINE",
@@ -125,56 +121,77 @@ class _HomePageState extends State<HomePage> {
           child: ListView.builder(
             itemCount: emails.length,
             itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Colors.blue,
-                      child: Text(
-                        emails[index]["sender"]![0],
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              return InkWell(
+                onTap: () {
+                  final selectedEmail = Email(
+                    id: index.toString(),
+                    senderName: emails[index]["sender"]!,
+                    senderEmail: "tdtu@gmail.com",
+                    subject: emails[index]["subject"]!,
+                    body: "Thông báo thời gian học online môn kỹ năng nhé.", 
+                    timestamp: DateTime.now(), 
+                  );
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmailDetailScreen(
+                        email: selectedEmail,
                       ),
                     ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  emails[index]["sender"]!,
-                                  style: TextStyle(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              Text(
-                                emails[index]["time"]!,
-                                style: TextStyle(color: Colors.grey, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            emails[index]["title"]!,
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  emails[index]["subject"]!,
-                                  style: TextStyle(color: Colors.black54),
-                                ),
-                              ),
-                              Icon(Icons.star_border, color: Colors.grey),
-                            ],
-                          ),
-                        ],
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.blue,
+                        child: Text(
+                          emails[index]["sender"]![0],
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
-                    ),
-                  ],
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    emails[index]["sender"]!,
+                                    style: TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                Text(
+                                  emails[index]["time"]!,
+                                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              emails[index]["title"]!,
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    emails[index]["subject"]!,
+                                    style: TextStyle(color: Colors.black54),
+                                  ),
+                                ),
+                                Icon(Icons.star_border, color: Colors.grey),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
