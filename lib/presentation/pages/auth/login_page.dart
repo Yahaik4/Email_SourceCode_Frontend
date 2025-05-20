@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/auth_utils.dart';
 import 'dart:convert';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/custom_snackbar.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // Thêm package Firebase Messaging
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -19,6 +22,38 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   String? _errorMessage;
   bool _isLoading = false;
+  String? _fcmToken; // Biến lưu FCM Token
+
+  @override
+  void initState() {
+    super.initState();
+    _getFcmToken(); // Lấy FCM Token khi khởi tạo
+  }
+
+  // Hàm lấy FCM Token
+  Future<void> _getFcmToken() async {
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      setState(() {
+        _fcmToken = fcmToken;
+      });
+    } catch (e) {
+      print('Error getting FCM token: $e');
+    }
+  }
+
+  Future<String?> _extractToken(http.Response response) async {
+    try {
+      final responseData = jsonDecode(response.body);
+      return responseData['token'] as String?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _storeToken(String token) async {
+    await SessionManager.setToken(token);
+  }
 
   Future<void> _signInWithEmailAndPassword() async {
     if (!_formKey.currentState!.validate()) return;
@@ -29,26 +64,31 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      // Gửi yêu cầu đăng nhập
-      final loginResponse = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'email': _emailController.text.trim(),
-              'password': _passwordController.text.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+      final loginResponse = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+          'fcmToken': _fcmToken, // Thêm FCM Token vào body
+        }),
+      ).timeout(const Duration(seconds: 10));
 
       if (loginResponse.statusCode == 200) {
-        // Gọi API /api/users/email
-        final userResponse = await http.post(
-          Uri.parse('${ApiConfig.baseUrl}/api/users/email'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'email': _emailController.text.trim(),
-          }),
+        final token = await _extractToken(loginResponse);
+        if (token == null) {
+          throw Exception('Token not found in response');
+        }
+
+        print(token);
+        Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+        final userId = decodedToken['sub'];
+
+        final userResponse = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/api/users/$userId'),
+          headers: {
+            'Authorization': 'Bearer $token',
+          },
         ).timeout(const Duration(seconds: 10));
 
         if (userResponse.statusCode == 200) {
@@ -56,6 +96,9 @@ class _LoginPageState extends State<LoginPage> {
           final phoneNumber = userData['metadata']['phoneNumber'];
           final userId = userData['metadata']['id'];
           final is2FAEnabled = userData['metadata']['setting']['two_factor_enabled'] ?? false;
+          final theme = userData['metadata']['setting']['theme'] ?? "Dark";
+
+          await GetStorage().write('isDarkMode', theme == "Dark");
 
           if (phoneNumber == null || phoneNumber.isEmpty) {
             setState(() {
@@ -65,11 +108,9 @@ class _LoginPageState extends State<LoginPage> {
             return;
           }
 
-          // Chuẩn hóa phoneNumber
           String formattedPhoneNumber = phoneNumber.startsWith('+') ? phoneNumber : '+84$phoneNumber';
 
           if (is2FAEnabled) {
-            // Gửi OTP nếu 2FA bật
             await AuthUtils.startPhoneAuth(
               context: context,
               phoneNumber: formattedPhoneNumber,
@@ -78,11 +119,12 @@ class _LoginPageState extends State<LoginPage> {
               arguments: {
                 'phoneNumber': formattedPhoneNumber,
                 'userId': userId,
+                'token': token,
               },
               setLoading: (value) => setState(() => _isLoading = value),
             );
           } else {
-            // Đăng nhập ngay nếu 2FA tắt
+            await _storeToken(token);
             await SessionManager.setLoggedIn(true);
             CustomSnackBar.show(
               context,

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../../core/models/user_model.dart';
+import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:testabc/utils/session_manager.dart';
+import 'package:testabc/config/api_config.dart';
+import 'dart:convert';
+import 'package:testabc/main.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -15,39 +20,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
   File? _image;
   final ImagePicker _picker = ImagePicker();
   bool _isEditing = false;
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  // Controllers for text fields
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
 
-  // Mock user data for testing
-  final UserModel _user = UserModel(
-    id: '1',
-    username: 'Ngoc Thien',
-    email: 'ngocthien@gmail.com',
-    password: '********',
-    phoneNumber: '+84 123 456 789',
-  );
+  Map<String, dynamic>? _userData; // Lưu dữ liệu người dùng từ API
+  bool _twoFactorEnabled = false;
+  bool _notificationEnabled = false;
+  double _fontSize = 14; // Giá trị mặc định
+  String _fontFamily = 'Roboto'; // Giá trị mặc định
+
+  // Danh sách tùy chọn cho font size và font family
+  final List<double> _fontSizeOptions = [12, 14, 16, 18];
+  final List<String> _fontFamilyOptions = ['Roboto', 'Inter', 'OpenSans', 'Lato'];
 
   @override
   void initState() {
     super.initState();
-    // Initialize controllers with user data
-    _usernameController.text = _user.username;
-    _emailController.text = _user.email;
-    _phoneController.text = _user.phoneNumber ?? '';
-    _passwordController.text = _user.password;
+    _fetchUserData(); // Gọi API để lấy thông tin người dùng, bao gồm avatar
+  }
+
+  // Hàm lấy thông tin người dùng từ API
+  Future<void> _fetchUserData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Lấy token từ SessionManager
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        setState(() {
+          _errorMessage = 'No token found. Please login again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Giải mã token để lấy userId
+      final decodedToken = JwtDecoder.decode(token);
+      final userId = decodedToken['sub'];
+
+      // Gọi API lấy thông tin người dùng
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body);
+        setState(() {
+          _userData = userData;
+          // Cập nhật các controller và settings với dữ liệu từ API
+          _usernameController.text = userData['metadata']['username'] ?? 'Unknown';
+          _emailController.text = userData['metadata']['email'] ?? '';
+          _phoneController.text = userData['metadata']['phoneNumber'] ?? '';
+          _twoFactorEnabled = userData['metadata']['setting']['two_factor_enabled'] ?? false;
+          _notificationEnabled = userData['metadata']['setting']['notification_enabled'] ?? false;
+          _fontSize = (userData['metadata']['setting']['font_size'] ?? 14).toDouble();
+          _fontFamily = userData['metadata']['setting']['font_family'] ?? 'Roboto';
+          // Avatar được lấy từ userData['metadata']['avatar'] và sử dụng trong _buildAvatar
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = jsonDecode(response.body)['msg'] ?? 'Failed to fetch user data';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error: $e';
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    // Dispose controllers
     _usernameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -64,31 +124,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final isSmallScreen = size.width < 600;
+    final themeProvider = ThemeProvider.of(context);
 
     return Scaffold(
-      body: Container(
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.blue.shade900,
-              Colors.blue.shade500,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(),
-                SizedBox(height: isSmallScreen ? 20 : 40),
-                _buildProfileCard(isSmallScreen),
-                SizedBox(height: isSmallScreen ? 20 : 40),
-              ],
+      backgroundColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white,
+      body: SafeArea(
+        child: Container(
+          height: double.infinity,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: themeProvider.isDarkMode
+                  ? [const Color(0xFF1F1F2A), const Color(0xFF2C2C38)]
+                  : [Colors.blue.shade900, Colors.blue.shade500],
             ),
           ),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _errorMessage != null
+                  ? Center(
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(color: Colors.red.shade400),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildHeader(),
+                          SizedBox(height: isSmallScreen ? 20 : 40),
+                          _buildProfileCard(isSmallScreen),
+                          SizedBox(height: isSmallScreen ? 20 : 40),
+                        ],
+                      ),
+                    ),
         ),
       ),
     );
@@ -102,13 +172,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios),
           ),
           const Text(
             'Profile',
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -118,10 +186,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _isEditing = !_isEditing;
               });
             },
-            icon: Icon(
-              _isEditing ? Icons.check : Icons.edit,
-              color: Colors.white,
-            ),
+            icon: Icon(_isEditing ? Icons.check : Icons.edit),
           ),
         ],
       ),
@@ -135,7 +200,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         horizontal: isSmallScreen ? 20 : size.width * 0.1,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -167,12 +232,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.blue.shade900,
+              color: Theme.of(context).primaryColor,
               width: 3,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.blue.withOpacity(0.3),
+                color: Theme.of(context).primaryColor.withOpacity(0.3),
                 blurRadius: 10,
                 spreadRadius: 2,
               ),
@@ -182,19 +247,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _isEditing ? _pickImage : null,
             child: CircleAvatar(
               radius: isSmallScreen ? 60 : 80,
-              backgroundImage: _image != null
-                  ? FileImage(_image!)
-                  : _user.avatar != null
-                      ? NetworkImage(_user.avatar!) as ImageProvider
-                      : null,
+              backgroundImage: 
+                      _userData != null && _userData!['metadata']['avatar'] != null
+                      ? NetworkImage(_userData!['metadata']['avatar']) as ImageProvider // Ảnh từ API
+                      : AssetImage('assets/default-avatar.png') as ImageProvider, // Ảnh mặc định từ assets
               backgroundColor: Colors.grey[200],
-              child: _image == null && _user.avatar == null
-                  ? Icon(
-                      Icons.person,
-                      size: isSmallScreen ? 60 : 80,
-                      color: Colors.grey[400],
-                    )
-                  : null,
             ),
           ),
         ),
@@ -205,7 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.blue.shade900,
+                color: Theme.of(context).primaryColor,
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.white, width: 2),
               ),
@@ -221,30 +278,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildUserId(bool isSmallScreen) {
+    final themeProvider = ThemeProvider.of(context);
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isSmallScreen ? 16 : 24,
         vertical: isSmallScreen ? 8 : 12,
       ),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: themeProvider.isDarkMode ? const Color(0xFF3C3C48) : Colors.blue.shade50,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(
+          color: themeProvider.isDarkMode ? const Color(0xFF9146FF) : Colors.blue.shade200,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             Icons.badge_outlined,
-            color: Colors.blue.shade900,
+            color: Theme.of(context).primaryColor,
             size: isSmallScreen ? 20 : 24,
           ),
           SizedBox(width: isSmallScreen ? 8 : 12),
           Text(
-            'ID: ${_user.id}',
+            'ID: ${_userData != null ? _userData!['metadata']['id'] : "N/A"}',
             style: TextStyle(
-              color: Colors.blue.shade900,
-              fontSize: isSmallScreen ? 14 : 16,
+              color: Theme.of(context).primaryColor,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -254,6 +313,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildForm(bool isSmallScreen) {
+    final themeProvider = ThemeProvider.of(context);
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: isSmallScreen ? 20 : 40,
@@ -261,7 +321,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Form(
         key: _formKey,
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildTextField(
+              label: 'Email',
+              icon: Icons.email_outlined,
+              controller: _emailController,
+              enabled: false, // Không cho chỉnh sửa
+            ),
+            SizedBox(height: isSmallScreen ? 16 : 24),
+            _buildTextField(
+              label: 'Phone Number',
+              icon: Icons.phone_outlined,
+              controller: _phoneController,
+              enabled: false, // Không cho chỉnh sửa
+            ),
+            SizedBox(height: isSmallScreen ? 16 : 24),
             _buildTextField(
               label: 'Username',
               icon: Icons.person_outline,
@@ -275,50 +350,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             SizedBox(height: isSmallScreen ? 16 : 24),
-            _buildTextField(
-              label: 'Email',
-              icon: Icons.email_outlined,
-              controller: _emailController,
-              enabled: _isEditing,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your email';
-                }
-                if (!value.contains('@')) {
-                  return 'Please enter a valid email';
-                }
-                return null;
-              },
+            Text(
+              'Settings',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+              ),
             ),
-            SizedBox(height: isSmallScreen ? 16 : 24),
-            _buildTextField(
-              label: 'Phone Number',
-              icon: Icons.phone_outlined,
-              controller: _phoneController,
-              enabled: _isEditing,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your phone number';
-                }
-                return null;
-              },
+            SizedBox(height: isSmallScreen ? 8 : 12),
+            SwitchListTile(
+              title: Text(
+                'Two Factor Authentication',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              value: _twoFactorEnabled,
+              onChanged: _isEditing
+                  ? (value) {
+                      setState(() {
+                        _twoFactorEnabled = value;
+                      });
+                    }
+                  : null,
+              activeColor: Theme.of(context).primaryColor,
             ),
-            SizedBox(height: isSmallScreen ? 16 : 24),
-            _buildTextField(
-              label: 'Password',
-              icon: Icons.lock_outline,
-              controller: _passwordController,
-              enabled: _isEditing,
-              obscureText: true,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
-                return null;
-              },
+            SwitchListTile(
+              title: Text(
+                'Notifications',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              value: _notificationEnabled,
+              onChanged: _isEditing
+                  ? (value) {
+                      setState(() {
+                        _notificationEnabled = value;
+                      });
+                    }
+                  : null,
+              activeColor: Theme.of(context).primaryColor,
+            ),
+            ListTile(
+              title: Text(
+                'Font Size',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              trailing: DropdownButton<double>(
+                value: _fontSize,
+                items: _fontSizeOptions.map((size) {
+                  return DropdownMenuItem<double>(
+                    value: size,
+                    child: Text('$size'),
+                  );
+                }).toList(),
+                onChanged: _isEditing
+                    ? (value) {
+                        if (value != null) {
+                          setState(() {
+                            _fontSize = value;
+                          });
+                        }
+                      }
+                    : null,
+              ),
+            ),
+            ListTile(
+              title: Text(
+                'Font Family',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              trailing: DropdownButton<String>(
+                value: _fontFamily,
+                items: _fontFamilyOptions.map((font) {
+                  return DropdownMenuItem<String>(
+                    value: font,
+                    child: Text(font),
+                  );
+                }).toList(),
+                onChanged: _isEditing
+                    ? (value) {
+                        if (value != null) {
+                          setState(() {
+                            _fontFamily = value;
+                          });
+                        }
+                      }
+                    : null,
+              ),
+            ),
+            SwitchListTile(
+              title: Text(
+                'Dark Mode',
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              value: themeProvider.isDarkMode,
+              onChanged: _isEditing
+                  ? (value) {
+                      themeProvider.toggleTheme();
+                    }
+                  : null,
+              activeColor: Theme.of(context).primaryColor,
             ),
             if (_isEditing) ...[
               SizedBox(height: isSmallScreen ? 24 : 32),
@@ -334,7 +473,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: const Text('Profile updated successfully'),
-                          backgroundColor: Colors.green,
+                          backgroundColor: themeProvider.isDarkMode ? const Color(0xFF9146FF) : Colors.green,
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
@@ -343,19 +482,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       );
                     }
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade900,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 3,
-                    shadowColor: Colors.blue.shade900.withOpacity(0.5),
-                  ),
-                  child: Text(
+                  child: const Text(
                     'SAVE CHANGES',
                     style: TextStyle(
-                      fontSize: isSmallScreen ? 16 : 18,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.2,
                     ),
@@ -373,44 +502,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String label,
     required IconData icon,
     required TextEditingController controller,
-    required String? Function(String?) validator,
-    bool obscureText = false,
+    String? Function(String?)? validator,
     bool enabled = true,
   }) {
+    final themeProvider = ThemeProvider.of(context);
     return TextFormField(
       controller: controller,
-      obscureText: obscureText,
       enabled: enabled,
       style: TextStyle(
-        fontSize: MediaQuery.of(context).size.width < 600 ? 14 : 16,
+        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
       ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.blue.shade900),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.blue.shade900),
-        ),
-        filled: true,
-        fillColor: enabled ? Colors.grey[50] : Colors.grey[100],
-        labelStyle: TextStyle(
-          color: Colors.grey[600],
-          fontSize: MediaQuery.of(context).size.width < 600 ? 14 : 16,
-        ),
-        contentPadding: EdgeInsets.symmetric(
+        prefixIcon: Icon(icon),
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: MediaQuery.of(context).size.width < 600 ? 12 : 16,
+          vertical: 12,
         ),
       ),
       validator: validator,
     );
   }
-} 
+}

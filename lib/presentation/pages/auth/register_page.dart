@@ -57,28 +57,21 @@ class _RegisterPageState extends State<RegisterPage> {
             _errorMessage = 'This email is already registered';
             _isLoading = false;
           });
-        } else {
-          // Email chưa tồn tại, tiếp tục gửi OTP
-          await AuthUtils.startPhoneAuth(
-            context: context,
-            phoneNumber: phoneNumber,
-            userId: '',
-            route: '/otp',
-            arguments: {
-              'phoneNumber': phoneNumber,
-              'email': email,
-              'username': username,
-              'password': password,
-            },
-            setLoading: (value) => setState(() => _isLoading = value),
-          );
-        }
+        } 
       } else {
-        // Xử lý lỗi từ API (ví dụ: 400, 500)
-        setState(() {
-          _errorMessage = jsonDecode(validateResponse.body)['msg'] ?? 'Validation error';
-          _isLoading = false;
-        });
+        await AuthUtils.startPhoneAuth(
+              context: context,
+              phoneNumber: phoneNumber,
+              userId: '',
+              route: '/otp',
+              arguments: {
+                'phoneNumber': phoneNumber,
+                'email': email,
+                'username': username,
+                'password': password,
+              },
+              setLoading: (value) => setState(() => _isLoading = value),
+            );
       }
     } catch (e) {
       // Xử lý lỗi nếu gọi API thất bại
