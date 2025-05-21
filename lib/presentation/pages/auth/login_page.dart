@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -33,12 +34,42 @@ class _LoginPageState extends State<LoginPage> {
   // Hàm lấy FCM Token
   Future<void> _getFcmToken() async {
     try {
-      final fcmToken = await FirebaseMessaging.instance.getToken();
-      setState(() {
-        _fcmToken = fcmToken;
-      });
+      if (kIsWeb) {
+        // Request permission for Web
+        NotificationSettings settings = await FirebaseMessaging.instance.requestPermission();
+
+        if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+          const vapidKey = 'BLgpg7R8mfUQVGHisBhWfDErrb_x2RBLO6nrXbK3I3mDZBx-pU7Y29cnJjTyJt9Tmz33Wedjy13yrAPs1HTqr1I';
+          String? token = await FirebaseMessaging.instance.getToken(vapidKey: vapidKey);
+          setState(() {
+            _fcmToken = token;
+            _errorMessage = token == null ? 'FCM token is null' : null;
+          });
+        } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
+          setState(() {
+            _errorMessage = 'Notification permission denied. Please enable it in browser settings.';
+          });
+        } else {
+          setState(() {
+            _errorMessage = 'Notification permission is not granted.';
+          });
+        }
+      } else {
+        // Mobile (Android/iOS)
+        String? token = await FirebaseMessaging.instance.getToken();
+        setState(() {
+          _fcmToken = token;
+          _errorMessage = token == null ? 'FCM token is null' : null;
+        });
+      }
+
+      if (_fcmToken != null) {
+        print('✅ FCM Token: $_fcmToken');
+      }
     } catch (e) {
-      print('Error getting FCM token: $e');
+      setState(() {
+        _errorMessage = 'Failed to get FCM token: $e';
+      });
     }
   }
 

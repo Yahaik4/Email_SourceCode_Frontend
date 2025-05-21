@@ -77,7 +77,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     hintStyle: TextStyle(
                       color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
-                    border: InputBorder.none,
+                    border: InputBorder.none, // No border in all states
+                    enabledBorder: InputBorder.none, // No border when not focused
+                    focusedBorder: InputBorder.none,
                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                   style: Theme.of(context).textTheme.bodyMedium,

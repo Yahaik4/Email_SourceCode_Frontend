@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/config/api_config.dart';
 import 'dart:convert';
 import 'package:testabc/main.dart';
+import 'package:flutter/foundation.dart'; // For kIsWeb
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -17,11 +19,12 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  File? _image;
+  File? _image; // For mobile
   final ImagePicker _picker = ImagePicker();
   bool _isEditing = false;
   bool _isLoading = false;
   String? _errorMessage;
+  Uint8List? _imageBytes;
 
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
@@ -32,6 +35,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _notificationEnabled = false;
   double _fontSize = 14; // Giá trị mặc định
   String _fontFamily = 'Roboto'; // Giá trị mặc định
+  bool _tempDarkMode = false; // Biến tạm thời cho trạng thái Dark Mode
 
   // Danh sách tùy chọn cho font size và font family
   final List<double> _fontSizeOptions = [12, 14, 16, 18];
@@ -51,7 +55,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
 
     try {
-      // Lấy token từ SessionManager
       final token = await SessionManager.getToken();
       if (token == null) {
         setState(() {
@@ -61,13 +64,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return;
       }
 
-      // Giải mã token để lấy userId
-      final decodedToken = JwtDecoder.decode(token);
-      final userId = decodedToken['sub'];
-
-      // Gọi API lấy thông tin người dùng
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/$userId'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/${JwtDecoder.decode(token)['sub']}'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -76,9 +74,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
+        final themeProvider = ThemeProvider.of(context);
         setState(() {
           _userData = userData;
-          // Cập nhật các controller và settings với dữ liệu từ API
           _usernameController.text = userData['metadata']['username'] ?? 'Unknown';
           _emailController.text = userData['metadata']['email'] ?? '';
           _phoneController.text = userData['metadata']['phoneNumber'] ?? '';
@@ -86,7 +84,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _notificationEnabled = userData['metadata']['setting']['notification_enabled'] ?? false;
           _fontSize = (userData['metadata']['setting']['font_size'] ?? 14).toDouble();
           _fontFamily = userData['metadata']['setting']['font_family'] ?? 'Roboto';
-          // Avatar được lấy từ userData['metadata']['avatar'] và sử dụng trong _buildAvatar
+          _tempDarkMode = userData['metadata']['setting']['theme'] == 'Dark'; // Khởi tạo _tempDarkMode
+          // Đồng bộ theme từ API
+          if (userData['metadata']['setting']['theme'] == 'Dark') {
+            if (!themeProvider.isDarkMode) themeProvider.toggleTheme();
+          } else {
+            if (themeProvider.isDarkMode) themeProvider.toggleTheme();
+          }
           _isLoading = false;
         });
       } else {
@@ -103,6 +107,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Hàm cập nhật profile qua API
+  Future<void> _updateProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        setState(() {
+          _errorMessage = 'No token found. Please login again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final themeProvider = ThemeProvider.of(context);
+      final settings = {
+        'two_factor_enabled': _twoFactorEnabled,
+        'notification_enabled': _notificationEnabled,
+        'font_size': _fontSize,
+        'font_family': _fontFamily,
+        'theme': _tempDarkMode ? 'Dark' : 'White', // Sử dụng _tempDarkMode
+      };
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('${ApiConfig.baseUrl}/api/users/update-profile'),
+      );
+
+      request.headers['Authorization'] = 'Bearer $token';
+      request.fields['username'] = _usernameController.text;
+      request.fields['setting'] = jsonEncode(settings);
+
+      // Xử lý upload ảnh
+      if (kIsWeb) {
+        if (_imageBytes != null) {
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'avatar',
+              _imageBytes!,
+              filename: 'avatar.jpg',
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        }
+      } else {
+        if (_image != null) {
+          final imageBytes = await _image!.readAsBytes();
+          final fileName = _image!.path.split('/').last;
+
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'avatar',
+              imageBytes,
+              filename: fileName,
+              contentType: MediaType('image', 'jpeg'),
+            ),
+          );
+        }
+      }
+
+      final response = await request.send().timeout(const Duration(seconds: 10));
+      final responseBody = await response.stream.bytesToString();
+
+      if (response.statusCode == 200) {
+        // Cập nhật theme nếu cần
+        if (_tempDarkMode != themeProvider.isDarkMode) {
+          themeProvider.toggleTheme(); // Chỉ toggle theme nếu trạng thái thay đổi
+        }
+        setState(() {
+          _isLoading = false;
+          _isEditing = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile updated successfully'),
+            backgroundColor: themeProvider.isDarkMode ? const Color(0xFF9146FF) : Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        await _fetchUserData();
+      } else {
+        setState(() {
+          _errorMessage = jsonDecode(responseBody)['msg'] ?? 'Failed to update profile';
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_errorMessage!),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error: $e';
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -114,9 +238,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _pickImage() async {
     final XFile? pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-      });
+      if (kIsWeb) {
+        final bytes = await pickedFile.readAsBytes();
+        setState(() {
+          _imageBytes = bytes; // Thêm biến mới để lưu bytes trên web
+          _image = null; // Đặt _image về null trên web
+        });
+      } else {
+        setState(() {
+          _image = File(pickedFile.path);
+          _imageBytes = null;
+        });
+      }
     }
   }
 
@@ -137,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               end: Alignment.bottomRight,
               colors: themeProvider.isDarkMode
                   ? [const Color(0xFF1F1F2A), const Color(0xFF2C2C38)]
-                  : [Colors.blue.shade900, Colors.blue.shade500],
+                  : [Colors.grey.shade100, Colors.grey.shade300], // Gradient Light Mode được chỉnh sửa
             ),
           ),
           child: _isLoading
@@ -247,10 +380,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: _isEditing ? _pickImage : null,
             child: CircleAvatar(
               radius: isSmallScreen ? 60 : 80,
-              backgroundImage: 
-                      _userData != null && _userData!['metadata']['avatar'] != null
-                      ? NetworkImage(_userData!['metadata']['avatar']) as ImageProvider // Ảnh từ API
-                      : AssetImage('assets/default-avatar.png') as ImageProvider, // Ảnh mặc định từ assets
+              backgroundImage: _image != null
+                  ? FileImage(_image!)
+                  : _imageBytes != null
+                      ? MemoryImage(_imageBytes!)
+                      : _userData != null && _userData!['metadata']['avatar'] != null
+                          ? NetworkImage(_userData!['metadata']['avatar']) as ImageProvider
+                          : const AssetImage('assets/default-avatar.png') as ImageProvider,
               backgroundColor: Colors.grey[200],
             ),
           ),
@@ -327,14 +463,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: 'Email',
               icon: Icons.email_outlined,
               controller: _emailController,
-              enabled: false, // Không cho chỉnh sửa
+              enabled: false,
             ),
             SizedBox(height: isSmallScreen ? 16 : 24),
             _buildTextField(
               label: 'Phone Number',
               icon: Icons.phone_outlined,
               controller: _phoneController,
-              enabled: false, // Không cho chỉnh sửa
+              enabled: false,
             ),
             SizedBox(height: isSmallScreen ? 16 : 24),
             _buildTextField(
@@ -401,10 +537,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               trailing: DropdownButton<double>(
                 value: _fontSize,
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Set dropdown text color
+                ),
+                dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white, // Set dropdown background
                 items: _fontSizeOptions.map((size) {
                   return DropdownMenuItem<double>(
                     value: size,
-                    child: Text('$size'),
+                    child: Text(
+                      '$size',
+                      style: TextStyle(
+                        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Ensure item text follows theme
+                      ),
+                    ),
                   );
                 }).toList(),
                 onChanged: _isEditing
@@ -427,10 +572,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               trailing: DropdownButton<String>(
                 value: _fontFamily,
+                style: TextStyle(
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Set dropdown text color
+                ),
+                dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white, // Set dropdown background
                 items: _fontFamilyOptions.map((font) {
                   return DropdownMenuItem<String>(
                     value: font,
-                    child: Text(font),
+                    child: Text(
+                      font,
+                      style: TextStyle(
+                        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Ensure item text follows theme
+                      ),
+                    ),
                   );
                 }).toList(),
                 onChanged: _isEditing
@@ -451,10 +605,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                 ),
               ),
-              value: themeProvider.isDarkMode,
+              value: _tempDarkMode, // Sử dụng _tempDarkMode
               onChanged: _isEditing
                   ? (value) {
-                      themeProvider.toggleTheme();
+                      setState(() {
+                        _tempDarkMode = value; // Cập nhật trạng thái tạm thời
+                      });
                     }
                   : null,
               activeColor: Theme.of(context).primaryColor,
@@ -467,19 +623,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
-                      setState(() {
-                        _isEditing = false;
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Profile updated successfully'),
-                          backgroundColor: themeProvider.isDarkMode ? const Color(0xFF9146FF) : Colors.green,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      );
+                      _updateProfile(); // Gọi API để cập nhật profile
                     }
                   },
                   child: const Text(

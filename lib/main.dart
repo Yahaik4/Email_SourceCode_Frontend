@@ -100,6 +100,7 @@ class _MyAppState extends State<MyApp> {
       isDarkMode: _isDarkMode,
       toggleTheme: _toggleTheme,
       child: MaterialApp(
+        debugShowCheckedModeBanner: false,
         title: 'Email App',
         theme: _lightTheme(),
         darkTheme: _darkTheme(),
@@ -118,7 +119,12 @@ class _MyAppState extends State<MyApp> {
         bodyMedium: TextStyle(color: Colors.black87),
         titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
-      iconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: const IconThemeData(color: Colors.black87), // Updated for light mode
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          iconColor: WidgetStateProperty.all(Colors.black87), // Ensure IconButton follows theme
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.blue.shade900,

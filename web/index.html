@@ -1,19 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
@@ -33,6 +20,32 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <!-- Firebase SDK scripts and initialization -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-messaging.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: 'AIzaSyDZo9hdASiCYYuVRNwnrm_Tsl-CMTXrNAk',
+      authDomain: 'emailapp-35b26.firebaseapp.com',
+      projectId: 'emailapp-35b26',
+      storageBucket: 'emailapp-35b26.firebasestorage.app',
+      messagingSenderId: '389409259766',
+      appId: '1:389409259766:web:dd73da5706aa99d0a32cd7',
+      measurementId: 'G-FPV0J1FKZN'
+    };
+    firebase.initializeApp(firebaseConfig);
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        .then(function(registration) {
+          console.log('✅ Service Worker registered with scope:', registration.scope);
+        }).catch(function(err) {
+          console.error('❌ Service Worker registration failed:', err);
+        });
+    }
+  </script>
+  <!-- Flutter bootstrap script -->
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
