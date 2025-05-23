@@ -3,7 +3,7 @@ import '../presentation/pages/auth/otp_page.dart';
 import '../presentation/pages/auth/register_page.dart';
 import '../presentation/pages/auth/login_page.dart';
 import '../presentation/pages/home/home_page.dart';
-import '../presentation/screens/profile_screen.dart';
+import '../presentation/profile/profile_screen.dart';
 
 final Map<String, WidgetBuilder> appRoutes = {
   '/login': (context) => const LoginPage(),

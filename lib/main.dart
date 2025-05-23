@@ -119,10 +119,10 @@ class _MyAppState extends State<MyApp> {
         bodyMedium: TextStyle(color: Colors.black87),
         titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
-      iconTheme: const IconThemeData(color: Colors.black87), // Updated for light mode
+      iconTheme: const IconThemeData(color: Colors.black87),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
-          iconColor: WidgetStateProperty.all(Colors.black87), // Ensure IconButton follows theme
+          iconColor: WidgetStateProperty.all(Colors.black87),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -134,6 +134,7 @@ class _MyAppState extends State<MyApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.grey[50],
+        prefixIconColor: Colors.black87, // Add prefix icon color for light mode
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -162,7 +163,12 @@ class _MyAppState extends State<MyApp> {
         bodyMedium: TextStyle(color: Colors.white70),
         titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
-      iconTheme: const IconThemeData(color: Colors.white),
+      iconTheme: const IconThemeData(color: Colors.white70),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          iconColor: WidgetStateProperty.all(Colors.white70),
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF9146FF),
@@ -172,6 +178,7 @@ class _MyAppState extends State<MyApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF1F1F2A),
+        prefixIconColor: Colors.white70, // Add prefix icon color for dark mode
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFF3C3C48)),

@@ -658,7 +658,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        prefixIcon: Icon(icon, color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,

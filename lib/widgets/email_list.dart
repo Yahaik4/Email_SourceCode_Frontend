@@ -31,14 +31,19 @@ class EmailList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: ListView.builder(
+          child: ListView.separated(
             itemCount: emails.length,
             itemBuilder: (context, index) {
               return EmailItem(
-                key: ValueKey(emails[index]["title"]),
+                key: ValueKey(emails[index]['subject']),
                 email: emails[index],
               );
             },
+            separatorBuilder: (context, index) => Divider(
+              color: Colors.grey.withOpacity(0.3), // Grey divider with reduced opacity
+              height: 1,
+              thickness: 1,
+            ),
           ),
         ),
       ],

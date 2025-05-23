@@ -4,7 +4,9 @@ import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
 
 class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const CustomAppBar({super.key});
+  final String? avatarUrl;
+
+  const CustomAppBar({super.key, this.avatarUrl});
 
   Future<void> _signOut() async {
     try {
@@ -73,7 +75,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
               Expanded(
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: "Tìm trong thư",
+                    hintText: "Find email",
                     hintStyle: TextStyle(
                       color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
                     ),
@@ -96,12 +98,12 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       showDialog(
                         context: context,
                         builder: (context) => AlertDialog(
-                          title: const Text('Đăng xuất'),
-                          content: const Text('Bạn có chắc muốn đăng xuất?'),
+                          title: const Text('Log out'),
+                          content: const Text('Are you sure to log out?', style: TextStyle(color: Colors.black),),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(context),
-                              child: const Text('Hủy'),
+                              child: const Text('Cancel'),
                             ),
                             TextButton(
                               onPressed: () async {
@@ -116,7 +118,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                                   );
                                 }
                               },
-                              child: const Text('Đăng xuất'),
+                              child: const Text('Do it!'),
                             ),
                           ],
                         ),
@@ -134,7 +136,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Hồ sơ',
+                            'Profile',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
@@ -150,7 +152,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Đăng xuất',
+                            'Log out',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
@@ -158,13 +160,9 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                   ],
                   child: CircleAvatar(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    child: Text(
-                      'N',
-                      style: TextStyle(
-                        color: Theme.of(context).iconTheme.color,
-                      ),
-                    ),
+                    backgroundImage: avatarUrl != null
+                          ? NetworkImage(avatarUrl!) as ImageProvider
+                          : const AssetImage('assets/default-avatar.png') as ImageProvider,
                   ),
                 ),
               ),
