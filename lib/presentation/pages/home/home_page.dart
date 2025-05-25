@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/custom_app_bar.dart';
@@ -22,12 +23,67 @@ class _HomePageState extends State<HomePage> {
   String? _avatarUrl;
   String? _userId;
   List<Map<String, String>> _emails = [];
+  late IO.Socket _socket;
 
   @override
   void initState() {
     super.initState();
     _fetchUserData();
     _fetchEmails('inbox');
+    _initWebSocket();
+  }
+
+  void _initWebSocket() async {
+    final token = await SessionManager.getToken();
+    if (token == null) {
+      print('No token found for WebSocket connection at ${DateTime.now()}');
+      return;
+    }
+
+    _socket = IO.io(ApiConfig.webSocketUrl, <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': false,
+      'query': {'token': token},
+    });
+
+    _socket.connect();
+    print('Attempting to connect WebSocket to ${ApiConfig.webSocketUrl} at ${DateTime.now()}');
+
+    _socket.onConnect((_) {
+      print('WebSocket connected at ${DateTime.now()}');
+    });
+
+    _socket.onConnectError((error) {
+      print('WebSocket connect error at ${DateTime.now()}: $error');
+    });
+
+    _socket.on('newEmail', (data) async {
+      print('New email notification received at ${DateTime.now()}: $data');
+      if (_pages[_selectedIndex] == 'inbox') {
+        await _fetchEmails('inbox');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('New email received, list updated'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
+
+    _socket.onDisconnect((_) {
+      print('WebSocket disconnected at ${DateTime.now()}, attempting to reconnect...');
+      _socket.connect();
+    });
+
+    _socket.onError((error) {
+      print('WebSocket error at ${DateTime.now()}: $error');
+    });
+  }
+
+  @override
+  void dispose() {
+    _socket.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserData() async {
@@ -91,17 +147,20 @@ class _HomePageState extends State<HomePage> {
         return {
           'username': userData['metadata']['username']?.toString() ?? 'Unknown User',
           'avatar': userData['metadata']['avatar']?.toString() ?? 'assets/default-avatar.png',
+          'email': userData['metadata']['email']?.toString() ?? 'unknown@example.com',
         };
       } else {
         return {
           'username': 'Unknown User',
           'avatar': 'assets/default-avatar.png',
+          'email': 'unknown@example.com',
         };
       }
     } catch (e) {
       return {
         'username': 'Unknown User',
         'avatar': 'assets/default-avatar.png',
+        'email': 'unknown@example.com',
       };
     }
   }
@@ -110,7 +169,7 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _isFetchingEmails = true;
       _errorMessage = null;
-      _emails = []; // Clear previous emails
+      _emails = [];
     });
 
     try {
@@ -134,19 +193,23 @@ class _HomePageState extends State<HomePage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> emails = data['metadata'];
-        print('API Response for folder $folder: $emails'); // Debug: Log raw response
 
         List<dynamic> filteredEmails;
         if (folder == 'sent') {
-          // For sent folder, filter by senderId
           filteredEmails = emails.where((email) => email['senderId'] == _userId).toList();
         } else {
-          // For other folders (inbox, starred, trash, draft, all), filter by recipientId
           filteredEmails = emails.where((email) {
             final recipients = email['recipients'] as List<dynamic>? ?? [];
             return recipients.any((recipient) => recipient['recipientId'] == _userId);
           }).toList();
         }
+
+        // Sort emails by createdAt, newest first
+        filteredEmails.sort((a, b) {
+          final dateA = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime(1970);
+          final dateB = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime(1970);
+          return dateB.compareTo(dateA);
+        });
 
         final uniqueSenderIds = filteredEmails.map((email) => email['senderId'].toString()).toSet();
 
@@ -159,14 +222,17 @@ class _HomePageState extends State<HomePage> {
         final emailList = filteredEmails.map((email) {
           final senderId = email['senderId'].toString();
           return {
+            'id': email['id']?.toString() ?? '',
             'sender': senderData[senderId]?['username'] ?? 'Unknown User',
+            'senderEmail': senderData[senderId]?['email'] ?? 'unknown@example.com',
             'avatar': senderData[senderId]?['avatar'] ?? 'assets/default-avatar.png',
             'subject': email['subject']?.toString() ?? '',
             'body': email['body']?.toString() ?? '',
+            'createdAt': email['createdAt']?.toString() ?? '',
             'time': _formatTime(email['createdAt']?.toString() ?? ''),
+            'attachments': jsonEncode(email['attachments'] ?? []),
           };
         }).toList();
-// Debug: Log final email list
 
         setState(() {
           _emails = emailList.cast<Map<String, String>>();
@@ -214,27 +280,27 @@ class _HomePageState extends State<HomePage> {
         onItemSelected: _onItemTapped,
       ),
       body: _isLoading
-      ? const Center(child: CircularProgressIndicator())
-      : _errorMessage != null
-          ? Center(
-              child: Text(
-                _errorMessage!,
-                style: TextStyle(color: Colors.red.shade400),
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
-              child: _isFetchingEmails
-                  ? const Center(child: CircularProgressIndicator())
-                  : _emails.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No emails in ${_pages[_selectedIndex]}',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        )
-                      : EmailList(emails: _emails),
-            ),
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red.shade400),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
+                  child: _isFetchingEmails
+                      ? const Center(child: CircularProgressIndicator())
+                      : _emails.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No emails in ${_pages[_selectedIndex]}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            )
+                          : EmailList(emails: _emails),
+                ),
     );
   }
 }

@@ -111,7 +111,6 @@ class _LoginPageState extends State<LoginPage> {
           throw Exception('Token not found in response');
         }
 
-        print(token);
         Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
         final userId = decodedToken['sub'];
 
