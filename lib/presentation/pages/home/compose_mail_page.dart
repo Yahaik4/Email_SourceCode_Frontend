@@ -28,22 +28,18 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   }
 
   void _sendMail() {
-    // TODO: Implement send mail logic
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Email sent (demo)')),
     );
   }
 
   void _attachFile() {
-    // TODO: Implement attach file logic
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Attachment feature (demo)')),
     );
   }
 
-  // Mock function to get email suggestions
   List<String> _getEmailSuggestions(String query) {
-    // TODO: Replace with actual API call
     final mockEmails = [
       'john.doe@gmail.com',
       'jane.smith@yahoo.com',
@@ -65,29 +61,54 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? Colors.white : Colors.black87;
+    final fillColor = isDark ? const Color(0xFF23232B) : Colors.white;
+    final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
+    final focusColor = const Color(0xFF9146FF);
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: borderColor),
+    );
+    final focusedBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(8),
+      borderSide: BorderSide(color: focusColor, width: 2),
+    );
+    final labelStyle = TextStyle(
+      color: isDark ? Colors.white70 : Colors.grey.shade700,
+      fontFamily: 'Inter',
+    );
+    final textStyle = TextStyle(
+      color: isDark ? Colors.white : Colors.black87,
+      fontFamily: 'Inter',
+    );
+    final contentPadding = const EdgeInsets.symmetric(vertical: 14, horizontal: 16);
+
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: iconColor),
-          onPressed: () => Navigator.of(context).pop(),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        iconTheme: IconThemeData(
+          color: isDark ? Colors.white : Colors.black87,
         ),
-        title: Text('Compose', style: TextStyle(color: iconColor)),
+        title: Text(
+          'Compose email',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+            fontFamily: 'Inter',
+          ),
+        ),
         actions: [
           IconButton(
-            icon: Icon(Icons.attach_file, color: iconColor),
+            icon: const Icon(Icons.attach_file),
             onPressed: _attachFile,
-            tooltip: 'Attach',
+            tooltip: 'Attachments',
           ),
           IconButton(
-            icon: Icon(Icons.send, color: iconColor),
+            icon: const Icon(Icons.send),
             onPressed: _sendMail,
             tooltip: 'Send',
           ),
         ],
-        iconTheme: IconThemeData(color: iconColor),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -97,36 +118,26 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
             children: [
               _buildRecipientField(),
               const SizedBox(height: 8),
-              _buildTextField('Cc', ccController),
+              _buildTextField('Cc', ccController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
               const SizedBox(height: 8),
-              _buildTextField('Bcc', bccController),
+              _buildTextField('Bcc', bccController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
               const SizedBox(height: 8),
-              _buildTextField('Subject', subjectController),
+              _buildTextField('Subject', subjectController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
               const SizedBox(height: 16),
               TextField(
                 controller: bodyController,
                 maxLines: 10,
-                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87, fontFamily: 'Inter'),
                 decoration: InputDecoration(
                   labelText: 'Compose email',
-                  labelStyle: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade500 : Colors.grey.shade600, fontFamily: 'Inter'),
-                  hintStyle: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade500 : Colors.grey.shade600, fontFamily: 'Inter'),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade700 : Colors.grey.shade300),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey.shade700 : Colors.grey.shade300),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFF9146FF), width: 2),
-                  ),
+                  border: border,
+                  enabledBorder: border,
+                  focusedBorder: focusedBorder,
                   filled: true,
-                  fillColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1A1A2E) : Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  fillColor: isDark ? Color(0xFF23232B) : Colors.white,
+                  labelStyle: labelStyle,
+                  contentPadding: contentPadding,
                 ),
+                style: textStyle,
               ),
             ],
           ),
@@ -140,9 +151,10 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     final labelColor = isDark ? Colors.grey.shade500 : Colors.grey.shade600;
     final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
     final focusColor = const Color(0xFF9146FF);
-    final fillColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final fillColor = isDark ? const Color(0xFF23232B) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
     double inputWidth = 360;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -266,36 +278,29 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor = isDark ? Colors.grey.shade500 : Colors.grey.shade600;
-    final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
-    final focusColor = const Color(0xFF9146FF);
-    final fillColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    Color? fillColor,
+    OutlineInputBorder border,
+    OutlineInputBorder focusedBorder,
+    TextStyle labelStyle,
+    TextStyle textStyle,
+    EdgeInsets contentPadding,
+  ) {
     return TextField(
       controller: controller,
-      style: TextStyle(color: textColor, fontFamily: 'Inter'),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: labelColor, fontFamily: 'Inter'),
-        hintStyle: TextStyle(color: labelColor, fontFamily: 'Inter'),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: borderColor),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: focusColor, width: 2),
-        ),
+        border: border,
+        enabledBorder: border,
+        focusedBorder: focusedBorder,
         filled: true,
         fillColor: fillColor,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        labelStyle: labelStyle,
+        contentPadding: contentPadding,
       ),
+      style: textStyle,
     );
   }
-} 
+}
