@@ -8,6 +8,8 @@ import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/custom_app_bar.dart';
 import 'package:testabc/widgets/email_drawer.dart';
 import 'package:testabc/widgets/email_list.dart';
+import 'package:testabc/widgets/compose_mail_fab.dart';
+import 'compose_mail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -295,12 +297,21 @@ class _HomePageState extends State<HomePage> {
                       : _emails.isEmpty
                           ? Center(
                               child: Text(
-                                'No emails in ${_pages[_selectedIndex]}',
+                                'No emails in \\${_pages[_selectedIndex]}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             )
                           : EmailList(emails: _emails),
                 ),
+      floatingActionButton: ComposeMailFab(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const ComposeMailPage(),
+            ),
+          );
+        },
+      ),
     );
   }
 }
