@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:testabc/widgets/custom_snackbar.dart';
+import 'package:testabc/widgets/home/custom_snackbar.dart';
 
 class AuthUtils {
   static Future<void> startPhoneAuth({

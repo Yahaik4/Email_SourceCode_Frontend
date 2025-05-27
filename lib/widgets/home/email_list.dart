@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:testabc/widgets/email_item.dart';
+import 'package:testabc/widgets/home/email_item.dart';
 
 class EmailList extends StatelessWidget {
   final List<Map<String, String>> emails;

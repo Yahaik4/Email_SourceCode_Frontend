@@ -5,11 +5,10 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
-import 'package:testabc/widgets/custom_app_bar.dart';
-import 'package:testabc/widgets/email_drawer.dart';
-import 'package:testabc/widgets/email_list.dart';
-import 'package:testabc/widgets/compose_mail_fab.dart';
-import 'compose_mail_page.dart';
+import 'package:testabc/widgets/detail/custom_app_bar.dart';
+import 'package:testabc/widgets/home/email_drawer.dart';
+import 'package:testabc/widgets/home/email_list.dart';
+import '../../../widgets/home/compose_mail_page.dart'; // Adjust path if ComposeMailPage is in a different directory
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,11 +20,15 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   bool _isLoading = false;
   bool _isFetchingEmails = false;
+  bool _isSearching = false;
   String? _errorMessage;
   String? _avatarUrl;
   String? _userId;
   List<Map<String, String>> _emails = [];
   late IO.Socket _socket;
+  bool _isSearchMode = false;
+  int _selectedIndex = 0;
+  final List<String> _pages = ['inbox', 'sent', 'trash', 'starred', 'draft', 'all'];
 
   @override
   void initState() {
@@ -61,7 +64,7 @@ class _HomePageState extends State<HomePage> {
 
     _socket.on('newEmail', (data) async {
       print('New email notification received at ${DateTime.now()}: $data');
-      if (_pages[_selectedIndex] == 'inbox') {
+      if (_pages[_selectedIndex] == 'inbox' && !_isSearchMode) {
         await _fetchEmails('inbox');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -151,13 +154,12 @@ class _HomePageState extends State<HomePage> {
           'avatar': userData['metadata']['avatar']?.toString() ?? 'assets/default-avatar.png',
           'email': userData['metadata']['email']?.toString() ?? 'unknown@example.com',
         };
-      } else {
-        return {
-          'username': 'Unknown User',
-          'avatar': 'assets/default-avatar.png',
-          'email': 'unknown@example.com',
-        };
       }
+      return {
+        'username': 'Unknown User',
+        'avatar': 'assets/default-avatar.png',
+        'email': 'unknown@example.com',
+      };
     } catch (e) {
       return {
         'username': 'Unknown User',
@@ -172,6 +174,8 @@ class _HomePageState extends State<HomePage> {
       _isFetchingEmails = true;
       _errorMessage = null;
       _emails = [];
+      _isSearchMode = false;
+      _isSearching = false;
     });
 
     try {
@@ -184,8 +188,15 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
+      String apiUrl;
+      if (folder == 'starred') {
+        apiUrl = '${ApiConfig.baseUrl}/api/email/starred';
+      } else {
+        apiUrl = '${ApiConfig.baseUrl}/api/email/?folder=$folder';
+      }
+
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/email/?folder=$folder'),
+        Uri.parse(apiUrl),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -194,11 +205,13 @@ class _HomePageState extends State<HomePage> {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final List<dynamic> emails = data['metadata'];
+        final List<dynamic> emails = data['metadata'] ?? [];
 
         List<dynamic> filteredEmails;
         if (folder == 'sent') {
           filteredEmails = emails.where((email) => email['senderId'] == _userId).toList();
+        } else if (folder == 'starred') {
+          filteredEmails = emails;
         } else {
           filteredEmails = emails.where((email) {
             final recipients = email['recipients'] as List<dynamic>? ?? [];
@@ -206,7 +219,6 @@ class _HomePageState extends State<HomePage> {
           }).toList();
         }
 
-        // Sort emails by createdAt, newest first
         filteredEmails.sort((a, b) {
           final dateA = DateTime.tryParse(a['createdAt']?.toString() ?? '') ?? DateTime(1970);
           final dateB = DateTime.tryParse(b['createdAt']?.toString() ?? '') ?? DateTime(1970);
@@ -254,6 +266,24 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _handleSearchResults(List<Map<String, String>> searchResults, bool isSearching) {
+    setState(() {
+      _emails = searchResults;
+      _isSearching = isSearching;
+      _isSearchMode = true;
+      _errorMessage = searchResults.isEmpty && !isSearching ? 'No emails found' : null;
+    });
+  }
+
+  void _clearSearch() {
+    setState(() {
+      _isSearchMode = false;
+      _isSearching = false;
+      _errorMessage = null;
+    });
+    _fetchEmails(_pages[_selectedIndex]);
+  }
+
   String _formatTime(String createdAt) {
     try {
       final dateTime = DateTime.parse(createdAt).toLocal();
@@ -263,21 +293,27 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  int _selectedIndex = 0;
-  final List<String> _pages = ['inbox', 'sent', 'trash', 'starred', 'draft', 'all'];
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      _isSearchMode = false;
+      _isSearching = false;
     });
     _fetchEmails(_pages[index]);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fabColor = isDark ? Colors.grey[800] : const Color.fromARGB(255, 165, 193, 235);
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: CustomAppBar(avatarUrl: _avatarUrl),
+      appBar: CustomAppBar(
+        avatarUrl: _avatarUrl,
+        onSearch: _handleSearchResults,
+        onClearSearch: _clearSearch,
+      ),
       drawer: EmailDrawer(
         onItemSelected: _onItemTapped,
       ),
@@ -292,25 +328,30 @@ class _HomePageState extends State<HomePage> {
                 )
               : RefreshIndicator(
                   onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
-                  child: _isFetchingEmails
+                  child: _isFetchingEmails || _isSearching
                       ? const Center(child: CircularProgressIndicator())
                       : _emails.isEmpty
                           ? Center(
                               child: Text(
-                                'No emails in \\${_pages[_selectedIndex]}',
+                                _isSearchMode
+                                    ? 'No emails found'
+                                    : 'No emails in ${_pages[_selectedIndex]}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
                             )
                           : EmailList(emails: _emails),
                 ),
-      floatingActionButton: ComposeMailFab(
+      floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => const ComposeMailPage(),
-            ),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ComposeMailPage()),
           );
         },
+        backgroundColor: Theme.of(context).primaryColor, 
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        tooltip: 'Compose Email',
+        child: const Icon(Icons.edit),
       ),
     );
   }

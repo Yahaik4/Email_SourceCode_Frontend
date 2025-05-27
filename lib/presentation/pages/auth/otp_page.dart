@@ -5,7 +5,7 @@ import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/auth_utils.dart';
 import 'dart:convert';
 import 'package:testabc/utils/session_manager.dart';
-import 'package:testabc/widgets/custom_snackbar.dart';
+import 'package:testabc/widgets/home/custom_snackbar.dart';
 
 class OtpPage extends StatefulWidget {
   const OtpPage({Key? key}) : super(key: key);

@@ -40,30 +40,26 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final iconColor = isDark ? Colors.white : Colors.black87;
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.grey[900] : Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: Icon(Icons.close, color: iconColor),
-          onPressed: () => Navigator.of(context).pop(),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor, // Đồng bộ với theme
+        foregroundColor: Theme.of(context).iconTheme.color, // Màu icon và tiêu đề
+        title: Text(
+          'Compose email',
+          style: TextStyle(color: Theme.of(context).textTheme.titleLarge?.color),
         ),
-        title: Text('Soạn email', style: TextStyle(color: iconColor)),
         actions: [
           IconButton(
-            icon: Icon(Icons.attach_file, color: iconColor),
+            icon: const Icon(Icons.attach_file),
             onPressed: _attachFile,
-            tooltip: 'Đính kèm',
+            tooltip: 'Attachments',
           ),
           IconButton(
-            icon: Icon(Icons.send, color: iconColor),
+            icon: const Icon(Icons.send),
             onPressed: _sendMail,
-            tooltip: 'Gửi',
+            tooltip: 'Send',
           ),
         ],
-        iconTheme: IconThemeData(color: iconColor),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -71,20 +67,26 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTextField('Đến', toController),
+              _buildTextField('To', toController),
               const SizedBox(height: 8),
               _buildTextField('Cc', ccController),
               const SizedBox(height: 8),
               _buildTextField('Bcc', bccController),
               const SizedBox(height: 8),
-              _buildTextField('Tiêu đề', subjectController),
+              _buildTextField('Subject', subjectController),
               const SizedBox(height: 16),
               TextField(
                 controller: bodyController,
                 maxLines: 10,
-                decoration: const InputDecoration(
-                  labelText: 'Soạn email',
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: 'Body',
+                  // Sử dụng inputDecorationTheme từ theme
+                  border: Theme.of(context).inputDecorationTheme.border,
+                  enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
+                  filled: Theme.of(context).inputDecorationTheme.filled,
+                  fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+                  labelStyle: Theme.of(context).inputDecorationTheme.labelStyle,
+                  prefixIconColor: Theme.of(context).inputDecorationTheme.prefixIconColor,
                 ),
               ),
             ],
@@ -99,8 +101,14 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        // Sử dụng inputDecorationTheme từ theme
+        border: Theme.of(context).inputDecorationTheme.border,
+        enabledBorder: Theme.of(context).inputDecorationTheme.enabledBorder,
+        filled: Theme.of(context).inputDecorationTheme.filled,
+        fillColor: Theme.of(context).inputDecorationTheme.fillColor,
+        labelStyle: Theme.of(context).inputDecorationTheme.labelStyle,
+        prefixIconColor: Theme.of(context).inputDecorationTheme.prefixIconColor,
       ),
     );
   }
-} 
+}
