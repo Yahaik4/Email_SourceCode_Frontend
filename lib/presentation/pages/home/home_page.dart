@@ -8,7 +8,7 @@ import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/detail/custom_app_bar.dart';
 import 'package:testabc/widgets/home/email_drawer.dart';
 import 'package:testabc/widgets/home/email_list.dart';
-import '../../../widgets/home/compose_mail_page.dart'; // Adjust path if ComposeMailPage is in a different directory
+import 'compose_mail_page.dart'; // Updated path since both files are in the same directory
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
