@@ -13,8 +13,12 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   final TextEditingController bccController = TextEditingController();
   final TextEditingController subjectController = TextEditingController();
   final TextEditingController bodyController = TextEditingController();
-  final List<String> selectedRecipients = [];
+  final List<String> toRecipients = [];
+  final List<String> ccRecipients = [];
+  final List<String> bccRecipients = [];
   final FocusNode toFocusNode = FocusNode();
+  final FocusNode ccFocusNode = FocusNode();
+  final FocusNode bccFocusNode = FocusNode();
 
   @override
   void dispose() {
@@ -24,6 +28,8 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     subjectController.dispose();
     bodyController.dispose();
     toFocusNode.dispose();
+    ccFocusNode.dispose();
+    bccFocusNode.dispose();
     super.dispose();
   }
 
@@ -39,60 +45,50 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     );
   }
 
-  List<String> _getEmailSuggestions(String query) {
-    final mockEmails = [
-      'john.doe@gmail.com',
-      'jane.smith@yahoo.com',
-      'alice.wonderland@company.com',
-      'bob.builder@outlook.com',
-      'charlie.brown@mail.com',
-      'david.jones@company.com',
-      'eve.adams@company.com',
-      'frank.miller@company.com',
-      'grace.hopper@company.com',
-      'henry.ford@company.com',
-    ];
-    return mockEmails.where((email) =>
-      email.toLowerCase().contains(query.toLowerCase()) ||
-      email.split('@')[0].toLowerCase().contains(query.toLowerCase())
-    ).toList();
+  bool _isValidEmail(String email) {
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    return emailRegex.hasMatch(email);
+  }
+
+  void _addRecipient(String email, String field) {
+    if (!_isValidEmail(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid email format')),
+      );
+      return;
+    }
+
+    setState(() {
+      if (email.isNotEmpty) {
+        if (field == 'to' && !toRecipients.contains(email)) {
+          toRecipients.add(email);
+          toController.clear();
+        } else if (field == 'cc' && !ccRecipients.contains(email)) {
+          ccRecipients.add(email);
+          ccController.clear();
+        } else if (field == 'bcc' && !bccRecipients.contains(email)) {
+          bccRecipients.add(email);
+          bccController.clear();
+        }
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fillColor = isDark ? const Color(0xFF23232B) : Colors.white;
-    final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
-    final focusColor = const Color(0xFF9146FF);
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: borderColor),
-    );
-    final focusedBorder = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: focusColor, width: 2),
-    );
-    final labelStyle = TextStyle(
-      color: isDark ? Colors.white70 : Colors.grey.shade700,
-      fontFamily: 'Inter',
-    );
-    final textStyle = TextStyle(
-      color: isDark ? Colors.white : Colors.black87,
-      fontFamily: 'Inter',
-    );
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textStyle = theme.textTheme.bodyMedium!.copyWith(fontFamily: 'Inter');
     final contentPadding = const EdgeInsets.symmetric(vertical: 14, horizontal: 16);
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        iconTheme: IconThemeData(
-          color: isDark ? Colors.white : Colors.black87,
-        ),
+        backgroundColor: theme.scaffoldBackgroundColor,
         title: Text(
           'Compose email',
-          style: TextStyle(
-            color: isDark ? Colors.white : Colors.black87,
-            fontWeight: FontWeight.bold,
+          style: theme.textTheme.titleLarge!.copyWith(
             fontSize: 22,
             fontFamily: 'Inter',
           ),
@@ -116,25 +112,25 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildRecipientField(),
+              _buildRecipientField('To', toController, toFocusNode, toRecipients, 'to', contentPadding),
               const SizedBox(height: 8),
-              _buildTextField('Cc', ccController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
+              _buildRecipientField('Cc', ccController, ccFocusNode, ccRecipients, 'cc', contentPadding),
               const SizedBox(height: 8),
-              _buildTextField('Bcc', bccController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
+              _buildRecipientField('Bcc', bccController, bccFocusNode, bccRecipients, 'bcc', contentPadding),
               const SizedBox(height: 8),
-              _buildTextField('Subject', subjectController, fillColor, border, focusedBorder, labelStyle, textStyle, contentPadding),
+              _buildTextField('Subject', subjectController, contentPadding),
               const SizedBox(height: 16),
               TextField(
                 controller: bodyController,
                 maxLines: 10,
                 decoration: InputDecoration(
                   labelText: 'Compose email',
-                  border: border,
-                  enabledBorder: border,
-                  focusedBorder: focusedBorder,
+                  border: theme.inputDecorationTheme.border,
+                  enabledBorder: theme.inputDecorationTheme.enabledBorder,
+                  focusedBorder: theme.inputDecorationTheme.focusedBorder,
                   filled: true,
-                  fillColor: isDark ? Color(0xFF23232B) : Colors.white,
-                  labelStyle: labelStyle,
+                  fillColor: theme.inputDecorationTheme.fillColor,
+                  labelStyle: theme.inputDecorationTheme.labelStyle,
                   contentPadding: contentPadding,
                 ),
                 style: textStyle,
@@ -146,132 +142,76 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     );
   }
 
-  Widget _buildRecipientField() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor = isDark ? Colors.grey.shade500 : Colors.grey.shade600;
-    final borderColor = isDark ? Colors.grey.shade700 : Colors.grey.shade300;
-    final focusColor = const Color(0xFF9146FF);
-    final fillColor = isDark ? const Color(0xFF23232B) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    double inputWidth = 360;
+  Widget _buildRecipientField(
+    String label,
+    TextEditingController controller,
+    FocusNode focusNode,
+    List<String> recipients,
+    String field,
+    EdgeInsets contentPadding,
+  ) {
+    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('To', style: TextStyle(fontSize: 16, color: labelColor, fontFamily: 'Inter')),
         const SizedBox(height: 8),
-        SizedBox(
-          width: inputWidth,
-          child: TextField(
-            controller: toController,
-            focusNode: toFocusNode,
-            style: TextStyle(color: textColor, fontFamily: 'Inter'),
-            cursorColor: textColor,
-            decoration: InputDecoration(
-              labelText: 'To',
-              labelStyle: TextStyle(color: labelColor, fontFamily: 'Inter'),
-              hintText: 'Enter recipient email',
-              hintStyle: TextStyle(color: labelColor, fontFamily: 'Inter'),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: borderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: borderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: focusColor, width: 2),
-              ),
-              filled: true,
-              fillColor: fillColor,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            ),
-            onChanged: (value) {
-              setState(() {});
-            },
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          style: theme.textTheme.bodyMedium!.copyWith(fontFamily: 'Inter'),
+          cursorColor: theme.iconTheme.color,
+          decoration: InputDecoration(
+            labelText: label,
+            labelStyle: theme.inputDecorationTheme.labelStyle,
+            border: theme.inputDecorationTheme.border,
+            enabledBorder: theme.inputDecorationTheme.enabledBorder,
+            focusedBorder: theme.inputDecorationTheme.focusedBorder,
+            filled: true,
+            fillColor: theme.inputDecorationTheme.fillColor,
+            contentPadding: contentPadding,
+            prefixIconColor: theme.inputDecorationTheme.prefixIconColor,
+            suffixIcon: controller.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(Icons.check, color: theme.brightness == Brightness.dark ? Colors.green[300] : Colors.green[700]),
+                    onPressed: () => _addRecipient(controller.text, field),
+                    tooltip: 'Add $label',
+                  )
+                : null,
           ),
+          onChanged: (value) {
+            setState(() {});
+          },
         ),
-        if (selectedRecipients.isNotEmpty)
+        if (recipients.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8, left: 2, bottom: 2),
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: selectedRecipients.map((email) => Chip(
-                label: Text(email, style: TextStyle(color: textColor, fontFamily: 'Inter')),
-                backgroundColor: fillColor,
-                deleteIcon: Icon(Icons.close, size: 18, color: textColor),
+              children: recipients.map((email) => Chip(
+                label: Text(
+                  email,
+                  style: theme.textTheme.bodyMedium!.copyWith(fontFamily: 'Inter'),
+                ),
+                backgroundColor: theme.inputDecorationTheme.fillColor,
+                deleteIcon: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: theme.iconTheme.color,
+                ),
                 onDeleted: () {
                   setState(() {
-                    selectedRecipients.remove(email);
+                    recipients.remove(email);
                   });
                 },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(
+                    color: theme.primaryColor, // Sử dụng màu tím (hoặc màu chính của theme)
+                  ),
+                ),
               )).toList(),
-            ),
-          ),
-        if (toController.text.isNotEmpty)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              width: inputWidth,
-              margin: const EdgeInsets.only(top: 4, left: 2),
-              decoration: BoxDecoration(
-                color: fillColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: borderColor, width: 1.2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.08),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: _getEmailSuggestions(toController.text).map((email) => ListTile(
-                  dense: true,
-                  minVerticalPadding: 0,
-                  isThreeLine: false,
-                  title: Text(
-                    email,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 15,
-                      fontFamily: 'Inter',
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green, size: 20),
-                        tooltip: 'Add',
-                        onPressed: () {
-                          setState(() {
-                            if (!selectedRecipients.contains(email)) {
-                              selectedRecipients.add(email);
-                            }
-                            toController.clear();
-                          });
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red, size: 20),
-                        tooltip: 'Dismiss',
-                        onPressed: () {
-                          setState(() {
-                            toController.clear();
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                )).toList(),
-              ),
             ),
           ),
       ],
@@ -281,26 +221,22 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   Widget _buildTextField(
     String label,
     TextEditingController controller,
-    Color? fillColor,
-    OutlineInputBorder border,
-    OutlineInputBorder focusedBorder,
-    TextStyle labelStyle,
-    TextStyle textStyle,
     EdgeInsets contentPadding,
   ) {
+    final theme = Theme.of(context);
     return TextField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
-        border: border,
-        enabledBorder: border,
-        focusedBorder: focusedBorder,
+        border: theme.inputDecorationTheme.border,
+        enabledBorder: theme.inputDecorationTheme.enabledBorder,
+        focusedBorder: theme.inputDecorationTheme.focusedBorder,
         filled: true,
-        fillColor: fillColor,
-        labelStyle: labelStyle,
+        fillColor: theme.inputDecorationTheme.fillColor,
+        labelStyle: theme.inputDecorationTheme.labelStyle,
         contentPadding: contentPadding,
       ),
-      style: textStyle,
+      style: theme.textTheme.bodyMedium!.copyWith(fontFamily: 'Inter'),
     );
   }
 }
