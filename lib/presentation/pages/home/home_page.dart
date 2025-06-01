@@ -8,7 +8,7 @@ import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/detail/custom_app_bar.dart';
 import 'package:testabc/widgets/home/email_drawer.dart';
 import 'package:testabc/widgets/home/email_list.dart';
-import 'compose_mail_page.dart'; // Updated path since both files are in the same directory
+import 'compose_mail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,7 +28,7 @@ class _HomePageState extends State<HomePage> {
   late IO.Socket _socket;
   bool _isSearchMode = false;
   int _selectedIndex = 0;
-  final List<String> _pages = ['inbox', 'sent', 'trash', 'starred', 'draft', 'all'];
+  final List<String> _pages = ['inbox', 'sent', 'trash', 'starred', 'draft'];
 
   @override
   void initState() {
@@ -208,15 +208,10 @@ class _HomePageState extends State<HomePage> {
         final List<dynamic> emails = data['metadata'] ?? [];
 
         List<dynamic> filteredEmails;
-        if (folder == 'sent') {
-          filteredEmails = emails.where((email) => email['senderId'] == _userId).toList();
-        } else if (folder == 'starred') {
+        if (folder == 'starred') {
           filteredEmails = emails;
         } else {
-          filteredEmails = emails.where((email) {
-            final recipients = email['recipients'] as List<dynamic>? ?? [];
-            return recipients.any((recipient) => recipient['recipientId'] == _userId);
-          }).toList();
+          filteredEmails = emails.where((email) => email['folder'] == folder).toList();
         }
 
         filteredEmails.sort((a, b) {
@@ -245,6 +240,9 @@ class _HomePageState extends State<HomePage> {
             'createdAt': email['createdAt']?.toString() ?? '',
             'time': _formatTime(email['createdAt']?.toString() ?? ''),
             'attachments': jsonEncode(email['attachments'] ?? []),
+            'starred': email['isStarred']?.toString() ?? 'false',
+            'isRead': email['isRead']?.toString() ?? 'false',
+            'folder': email['folder']?.toString() ?? folder, // Add folder field, fallback to input folder
           };
         }).toList();
 
@@ -318,29 +316,32 @@ class _HomePageState extends State<HomePage> {
         onItemSelected: _onItemTapped,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child: Text(
-                    _errorMessage!,
-                    style: TextStyle(color: Colors.red.shade400),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
-                  child: _isFetchingEmails || _isSearching
-                      ? const Center(child: CircularProgressIndicator())
-                      : _emails.isEmpty
-                          ? Center(
-                              child: Text(
-                                _isSearchMode
-                                    ? 'No emails found'
-                                    : 'No emails in ${_pages[_selectedIndex]}',
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                            )
-                          : EmailList(emails: _emails),
-                ),
+    ? const Center(child: CircularProgressIndicator())
+    : _errorMessage != null
+        ? Center(
+            child: Text(
+              _errorMessage!,
+              style: TextStyle(color: Colors.red.shade400),
+            ),
+          )
+        : RefreshIndicator(
+            onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
+            child: _isFetchingEmails || _isSearching
+                ? const Center(child: CircularProgressIndicator())
+                : _emails.isEmpty
+                    ? Center(
+                        child: Text(
+                          _isSearchMode
+                              ? 'No emails found'
+                              : 'No emails in ${_pages[_selectedIndex]}',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      )
+                    : EmailList(
+                        emails: _emails,
+                        onEmailUpdated: () => _fetchEmails(_pages[_selectedIndex]),
+                      )
+          ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(

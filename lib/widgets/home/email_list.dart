@@ -3,15 +3,16 @@ import 'package:testabc/widgets/home/email_item.dart';
 
 class EmailList extends StatelessWidget {
   final List<Map<String, String>> emails;
+  final VoidCallback? onEmailUpdated;
 
-  const EmailList({super.key, required this.emails});
+  const EmailList({super.key, required this.emails, this.onEmailUpdated});
 
   @override
   Widget build(BuildContext context) {
     if (emails.isEmpty) {
       return Center(
         child: Text(
-          "Không có email nào",
+          "There's no email in this folder",
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 16),
         ),
       );
@@ -22,7 +23,7 @@ class EmailList extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Text(
-            "Hộp thư đến",
+            "Email list:",
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -37,10 +38,11 @@ class EmailList extends StatelessWidget {
               return EmailItem(
                 key: ValueKey(emails[index]['subject']),
                 email: emails[index],
+                onEmailUpdated: onEmailUpdated,
               );
             },
             separatorBuilder: (context, index) => Divider(
-              color: Colors.grey.withOpacity(0.3), // Grey divider with reduced opacity
+              color: Colors.grey.withOpacity(0.3),
               height: 1,
               thickness: 1,
             ),

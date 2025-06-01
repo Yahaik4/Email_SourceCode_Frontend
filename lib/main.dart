@@ -15,7 +15,7 @@ void main() async {
     await GetStorage.init();
     final storage = GetStorage();
     final isLoggedIn = storage.read('token') != null;
-    final isDarkMode = storage.read('isDarkMode') ?? true; // Mặc định là Dark dựa trên backend
+    final isDarkMode = storage.read('isDarkMode') ?? true;
     await SessionManager.setLoggedIn(isLoggedIn);
 
     SystemChrome.setSystemUIOverlayStyle(
@@ -117,7 +117,8 @@ class _MyAppState extends State<MyApp> {
       scaffoldBackgroundColor: Colors.white,
       textTheme: const TextTheme(
         bodyMedium: TextStyle(color: Colors.black87),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 22),
+        titleMedium: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.w600),
       ),
       iconTheme: const IconThemeData(color: Colors.black87),
       iconButtonTheme: IconButtonThemeData(
@@ -134,7 +135,7 @@ class _MyAppState extends State<MyApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.grey[50],
-        prefixIconColor: Colors.black87, // Add prefix icon color for light mode
+        prefixIconColor: Colors.black87,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -143,6 +144,7 @@ class _MyAppState extends State<MyApp> {
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
+        labelStyle: const TextStyle(color: Colors.black87),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: Colors.white,
@@ -161,7 +163,8 @@ class _MyAppState extends State<MyApp> {
       scaffoldBackgroundColor: const Color(0xFF2C2C38),
       textTheme: const TextTheme(
         bodyMedium: TextStyle(color: Colors.white70),
-        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+        titleMedium: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w600),
       ),
       iconTheme: const IconThemeData(color: Colors.white70),
       iconButtonTheme: IconButtonThemeData(
@@ -178,7 +181,7 @@ class _MyAppState extends State<MyApp> {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF1F1F2A),
-        prefixIconColor: Colors.white70, // Add prefix icon color for dark mode
+        prefixIconColor: Colors.white70,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFF3C3C48)),

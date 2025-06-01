@@ -68,14 +68,14 @@ class EmailDrawer extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
-          ListTile(
-            leading: Icon(Icons.mark_as_unread_outlined, color: Theme.of(context).iconTheme.color),
-            title: Text("Tất cả thư", style: Theme.of(context).textTheme.bodyMedium),
-            onTap: () {
-              onItemSelected(5); // All
-              Navigator.pop(context);
-            },
-          ),
+          // ListTile(
+          //   leading: Icon(Icons.mark_as_unread_outlined, color: Theme.of(context).iconTheme.color),
+          //   title: Text("Tất cả thư", style: Theme.of(context).textTheme.bodyMedium),
+          //   onTap: () {
+          //     onItemSelected(5); // All
+          //     Navigator.pop(context);
+          //   },
+          // ),
           ListTile(
             leading: Icon(Icons.star_border, color: Theme.of(context).iconTheme.color),
             title: Text("Starred", style: Theme.of(context).textTheme.bodyMedium),

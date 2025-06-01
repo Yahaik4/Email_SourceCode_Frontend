@@ -18,6 +18,16 @@
 
   <title>testabc</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- ✅ Thêm CSS để chỉnh vị trí và độ mờ của reCAPTCHA -->
+  <style>
+    .grecaptcha-badge {
+      bottom: 10px !important;
+      right: 10px !important;
+      opacity: 0.3; /* Làm mờ */
+      z-index: 9999;
+    }
+  </style>
 </head>
 <body>
   <!-- Firebase SDK scripts and initialization -->
