@@ -235,14 +235,15 @@ class _HomePageState extends State<HomePage> {
             'sender': senderData[senderId]?['username'] ?? 'Unknown User',
             'senderEmail': senderData[senderId]?['email'] ?? 'unknown@example.com',
             'avatar': senderData[senderId]?['avatar'] ?? 'assets/default-avatar.png',
-            'subject': email['subject']?.toString() ?? '',
+            'subject': email['subject']?.toString() ?? 'No subject',
             'body': email['body']?.toString() ?? '',
             'createdAt': email['createdAt']?.toString() ?? '',
             'time': _formatTime(email['createdAt']?.toString() ?? ''),
             'attachments': jsonEncode(email['attachments'] ?? []),
             'starred': email['isStarred']?.toString() ?? 'false',
+            'isDraft': email['isDraft']?.toString() ?? 'false',
             'isRead': email['isRead']?.toString() ?? 'false',
-            'folder': email['folder']?.toString() ?? folder, // Add folder field, fallback to input folder
+            'folder': email['folder']?.toString() ?? folder,
           };
         }).toList();
 

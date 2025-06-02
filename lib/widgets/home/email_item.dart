@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/presentation/pages/home/email_detail_screen.dart';
+import 'package:testabc/presentation/pages/home/compose_mail_page.dart';
 
 class EmailItem extends StatefulWidget {
   final Map<String, String> email;
@@ -16,10 +17,10 @@ class EmailItem extends StatefulWidget {
 }
 
 class _EmailItemState extends State<EmailItem> {
-  bool _isLoadingStar = false; // Trạng thái loading cho toggle star
-  bool _isLoadingRead = false; // Trạng thái loading cho mark as read
-  bool _isLoadingTrash = false; // Trạng thái loading cho toggle trash
-  bool _isLoadingDelete = false; // Trạng thái loading cho delete
+  bool _isLoadingStar = false; 
+  bool _isLoadingRead = false;
+  bool _isLoadingTrash = false;
+  bool _isLoadingDelete = false; 
 
   Future<bool> _toggleTrash(BuildContext context) async {
     setState(() {
@@ -237,26 +238,36 @@ class _EmailItemState extends State<EmailItem> {
         ? NetworkImage(avatarUrl)
         : AssetImage(avatarUrl) as ImageProvider;
 
-    final subject = widget.email['subject'] ?? '';
+    final subject = widget.email['subject'] ?? 'No subject';
     final truncatedSubject = subject.length > 50 ? '${subject.substring(0, 50)}...' : subject;
     final folder = widget.email['folder'];
-    final body = widget.email['body'] ?? '';
+    final body = widget.email['body'] ?? 'No body';
     final cleanedBody = body.replaceAll('\t', ' ').replaceAll('\n', ' ').trim();
     final truncatedBody = cleanedBody.length > 50 ? '${cleanedBody.substring(0, 50)}...' : cleanedBody;
 
     final isStarred = widget.email['starred'] == 'true';
     final isRead = widget.email['isRead'] == 'true';
+    final isDraft = widget.email['isDraft'] == 'true';
 
     return InkWell(
       onTap: () async {
-        await _markAsRead(context);
-        if (mounted) {
+        if (isDraft) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EmailDetailScreen(emailId: widget.email['id']!),
+              builder: (context) => ComposeMailPage(emailId: widget.email['id']),
             ),
           );
+        } else {
+          await _markAsRead(context);
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EmailDetailScreen(emailId: widget.email['id']!),
+              ),
+            );
+          }
         }
       },
       child: Padding(
