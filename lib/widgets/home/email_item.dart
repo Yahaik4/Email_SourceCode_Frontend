@@ -5,22 +5,31 @@ import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/presentation/pages/home/email_detail_screen.dart';
 import 'package:testabc/presentation/pages/home/compose_mail_page.dart';
+import 'package:testabc/main.dart';
 
 class EmailItem extends StatefulWidget {
   final Map<String, String> email;
   final VoidCallback? onEmailUpdated;
+  final String? currentLabel; // New prop to track if viewing emails in a label
 
-  const EmailItem({super.key, required this.email, this.onEmailUpdated});
+  const EmailItem({
+    super.key,
+    required this.email,
+    this.onEmailUpdated,
+    this.currentLabel,
+  });
 
   @override
   _EmailItemState createState() => _EmailItemState();
 }
 
 class _EmailItemState extends State<EmailItem> {
-  bool _isLoadingStar = false; 
+  bool _isLoadingStar = false;
   bool _isLoadingRead = false;
   bool _isLoadingTrash = false;
-  bool _isLoadingDelete = false; 
+  bool _isLoadingDelete = false;
+  bool _isLoadingAddLabel = false;
+  bool _isLoadingRemoveLabel = false;
 
   Future<bool> _toggleTrash(BuildContext context) async {
     setState(() {
@@ -231,6 +240,213 @@ class _EmailItemState extends State<EmailItem> {
     }
   }
 
+  Future<List<String>> _fetchLabels() async {
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No token found')),
+        );
+        return [];
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/label'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> labels = data['metadata'] ?? [];
+        return labels.map((label) => label['labelName'].toString()).toList();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              jsonDecode(response.body)['msg'] ?? 'Failed to fetch labels',
+            ),
+          ),
+        );
+        return [];
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching labels: $e')),
+      );
+      return [];
+    }
+  }
+
+  Future<void> _addToLabel(String labelName) async {
+    setState(() {
+      _isLoadingAddLabel = true;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No token found')),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/label/addEmail'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'labelName': labelName,
+          'emailIds': [widget.email['id']],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Email added to label "$labelName"')),
+        );
+        widget.onEmailUpdated?.call();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              jsonDecode(response.body)['msg'] ?? 'Failed to add email to label',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingAddLabel = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _removeFromLabel(String labelName) async {
+    setState(() {
+      _isLoadingRemoveLabel = true;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No token found')),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/label/removeEmail'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'labelName': labelName,
+          'emailIds': [widget.email['id']],
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Email removed from label "$labelName"')),
+        );
+        widget.onEmailUpdated?.call();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              jsonDecode(response.body)['msg'] ?? 'Failed to remove email from label',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRemoveLabel = false;
+        });
+      }
+    }
+  }
+
+  void _showAddLabelDialog(BuildContext context) async {
+    final labels = await _fetchLabels();
+    if (labels.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No labels available')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: ThemeProvider.of(context).isDarkMode
+              ? const Color(0xFF3C3C48)
+              : Colors.grey[300],
+          title: Text(
+            'Add to Label',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 18,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                ),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: labels.length,
+              itemBuilder: (context, index) {
+                final label = labels[index];
+                return ListTile(
+                  title: Text(
+                    label,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  onTap: () {
+                    _addToLabel(label);
+                    Navigator.of(context).pop();
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: Text(
+                'Cancel',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).primaryColor,
+                    ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatarUrl = widget.email['avatar'] ?? 'assets/default-avatar.png';
@@ -350,7 +566,11 @@ class _EmailItemState extends State<EmailItem> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      _isLoadingStar || _isLoadingTrash || _isLoadingDelete
+                      _isLoadingStar ||
+                              _isLoadingTrash ||
+                              _isLoadingDelete ||
+                              _isLoadingAddLabel ||
+                              _isLoadingRemoveLabel
                           ? const SizedBox(
                               width: 20,
                               height: 20,
@@ -370,6 +590,10 @@ class _EmailItemState extends State<EmailItem> {
                                   await _toggleTrash(context);
                                 } else if (value == 'delete') {
                                   await _deleteEmail(context);
+                                } else if (value == 'add_label') {
+                                  _showAddLabelDialog(context);
+                                } else if (value == 'remove_label') {
+                                  await _removeFromLabel(widget.currentLabel!);
                                 }
                               },
                               itemBuilder: (context) => [
@@ -417,6 +641,39 @@ class _EmailItemState extends State<EmailItem> {
                                         const SizedBox(width: 8),
                                         Text(
                                           'Delete',
+                                          style: Theme.of(context).textTheme.bodyMedium,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                PopupMenuItem(
+                                  value: 'add_label',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.label_outline,
+                                        color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Add to Label',
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (widget.currentLabel != null)
+                                  PopupMenuItem(
+                                    value: 'remove_label',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.label_off_outlined,
+                                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Remove from Label',
                                           style: Theme.of(context).textTheme.bodyMedium,
                                         ),
                                       ],

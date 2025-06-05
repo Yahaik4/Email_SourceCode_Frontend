@@ -4,11 +4,11 @@ import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:testabc/config/api_config.dart';
+import 'package:testabc/presentation/pages/home/compose_mail_page.dart';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/detail/custom_app_bar.dart';
 import 'package:testabc/widgets/home/email_drawer.dart';
 import 'package:testabc/widgets/home/email_list.dart';
-import 'compose_mail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,9 +25,12 @@ class _HomePageState extends State<HomePage> {
   String? _avatarUrl;
   String? _userId;
   List<Map<String, String>> _emails = [];
+  List<String> _labels = [];
   late IO.Socket _socket;
   bool _isSearchMode = false;
   int _selectedIndex = 0;
+  String? _selectedLabel;
+
   final List<String> _pages = ['inbox', 'sent', 'trash', 'starred', 'draft'];
 
   @override
@@ -35,6 +38,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _fetchUserData();
     _fetchEmails('inbox');
+    _fetchLabels();
     _initWebSocket();
   }
 
@@ -64,7 +68,7 @@ class _HomePageState extends State<HomePage> {
 
     _socket.on('newEmail', (data) async {
       print('New email notification received at ${DateTime.now()}: $data');
-      if (_pages[_selectedIndex] == 'inbox' && !_isSearchMode) {
+      if (_pages[_selectedIndex] == 'inbox' && !_isSearchMode && _selectedLabel == null) {
         await _fetchEmails('inbox');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -137,6 +141,137 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _fetchLabels() async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        setState(() {
+          _errorMessage = "No token found";
+        });
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/label'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> labels = data['metadata'] ?? [];
+        setState(() {
+          _labels = labels.map((label) => label['labelName'].toString()).toList();
+        });
+      } else {
+        setState(() {
+          _errorMessage = jsonDecode(response.body)['msg'] ?? 'Failed to fetch labels';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error fetching labels: $e';
+      });
+    }
+  }
+
+  Future<void> _createLabel(String labelName) async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        setState(() {
+          _errorMessage = "No token found";
+        });
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/label'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'labelName': labelName}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        await _fetchLabels();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Label "$labelName" created successfully'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = jsonDecode(response.body)['msg'] ?? 'Failed to create label';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error creating label: $e';
+      });
+    }
+  }
+
+  Future<void> _deleteLabel(String labelName) async {
+    setState(() {
+      _errorMessage = null;
+    });
+
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        setState(() {
+          _errorMessage = "No token found";
+        });
+        return;
+      }
+
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/api/label/$labelName'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        await _fetchLabels();
+        if (_selectedLabel == labelName) {
+          setState(() {
+            _selectedLabel = null;
+          });
+          _fetchEmails('inbox');
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Label "$labelName" deleted successfully'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = jsonDecode(response.body)['msg'] ?? 'Failed to delete label';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error deleting label: $e';
+      });
+    }
+  }
+
   Future<Map<String, String>> _fetchUserName(String userId, String token) async {
     try {
       final response = await http.get(
@@ -169,7 +304,7 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _fetchEmails(String folder) async {
+  Future<void> _fetchEmails(String folder, {String? labelName}) async {
     setState(() {
       _isFetchingEmails = true;
       _errorMessage = null;
@@ -189,7 +324,9 @@ class _HomePageState extends State<HomePage> {
       }
 
       String apiUrl;
-      if (folder == 'starred') {
+      if (labelName != null) {
+        apiUrl = '${ApiConfig.baseUrl}/api/label/$labelName/emails';
+      } else if (folder == 'starred') {
         apiUrl = '${ApiConfig.baseUrl}/api/email/starred';
       } else {
         apiUrl = '${ApiConfig.baseUrl}/api/email/?folder=$folder';
@@ -208,7 +345,7 @@ class _HomePageState extends State<HomePage> {
         final List<dynamic> emails = data['metadata'] ?? [];
 
         List<dynamic> filteredEmails;
-        if (folder == 'starred') {
+        if (folder == 'starred' || labelName != null) {
           filteredEmails = emails;
         } else {
           filteredEmails = emails.where((email) => email['folder'] == folder).toList();
@@ -279,6 +416,7 @@ class _HomePageState extends State<HomePage> {
       _isSearchMode = false;
       _isSearching = false;
       _errorMessage = null;
+      _selectedLabel = null;
     });
     _fetchEmails(_pages[_selectedIndex]);
   }
@@ -297,8 +435,19 @@ class _HomePageState extends State<HomePage> {
       _selectedIndex = index;
       _isSearchMode = false;
       _isSearching = false;
+      _selectedLabel = null;
     });
     _fetchEmails(_pages[index]);
+  }
+
+  void _onLabelSelected(String labelName) {
+    setState(() {
+      _selectedIndex = 0;
+      _isSearchMode = false;
+      _isSearching = false;
+      _selectedLabel = labelName;
+    });
+    _fetchEmails('inbox', labelName: labelName);
   }
 
   @override
@@ -315,34 +464,45 @@ class _HomePageState extends State<HomePage> {
       ),
       drawer: EmailDrawer(
         onItemSelected: _onItemTapped,
+        onLabelSelected: _onLabelSelected,
+        onLabelCreated: _createLabel,
+        onLabelDeleted: _deleteLabel,
+        labels: _labels,
       ),
       body: _isLoading
-    ? const Center(child: CircularProgressIndicator())
-    : _errorMessage != null
-        ? Center(
-            child: Text(
-              _errorMessage!,
-              style: TextStyle(color: Colors.red.shade400),
-            ),
-          )
-        : RefreshIndicator(
-            onRefresh: () => _fetchEmails(_pages[_selectedIndex]),
-            child: _isFetchingEmails || _isSearching
-                ? const Center(child: CircularProgressIndicator())
-                : _emails.isEmpty
-                    ? Center(
-                        child: Text(
-                          _isSearchMode
-                              ? 'No emails found'
-                              : 'No emails in ${_pages[_selectedIndex]}',
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      )
-                    : EmailList(
-                        emails: _emails,
-                        onEmailUpdated: () => _fetchEmails(_pages[_selectedIndex]),
-                      )
-          ),
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Text(
+                    _errorMessage!,
+                    style: TextStyle(color: Colors.red.shade400),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: () => _selectedLabel != null
+                      ? _fetchEmails('inbox', labelName: _selectedLabel)
+                      : _fetchEmails(_pages[_selectedIndex]),
+                  child: _isFetchingEmails || _isSearching
+                      ? const Center(child: CircularProgressIndicator())
+                      : _emails.isEmpty
+                          ? Center(
+                              child: Text(
+                                _isSearchMode
+                                    ? 'No emails found'
+                                    : _selectedLabel != null
+                                        ? 'No emails in label $_selectedLabel'
+                                        : 'No emails in ${_pages[_selectedIndex]}',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            )
+                          : EmailList(
+                              emails: _emails,
+                              currentLabel: _selectedLabel, // Pass currentLabel to EmailList
+                              onEmailUpdated: () => _selectedLabel != null
+                                  ? _fetchEmails('inbox', labelName: _selectedLabel)
+                                  : _fetchEmails(_pages[_selectedIndex]),
+                            ),
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -350,7 +510,7 @@ class _HomePageState extends State<HomePage> {
             MaterialPageRoute(builder: (context) => const ComposeMailPage()),
           );
         },
-        backgroundColor: Theme.of(context).primaryColor, 
+        backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         tooltip: 'Compose Email',
         child: const Icon(Icons.edit),

@@ -109,6 +109,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
             'createdAt': email['createdAt']?.toString() ?? '',
             'time': _formatTime(email['createdAt']?.toString() ?? ''),
             'attachments': jsonEncode(email['attachments'] ?? []),
+            'isRead': jsonEncode(email['isRead'] ?? true),
           };
         }).toList();
 

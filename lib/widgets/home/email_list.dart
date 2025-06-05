@@ -4,8 +4,9 @@ import 'package:testabc/widgets/home/email_item.dart';
 class EmailList extends StatelessWidget {
   final List<Map<String, String>> emails;
   final VoidCallback? onEmailUpdated;
+  final String? currentLabel;
 
-  const EmailList({super.key, required this.emails, this.onEmailUpdated});
+  const EmailList({super.key, required this.emails, this.onEmailUpdated, this.currentLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -38,6 +39,7 @@ class EmailList extends StatelessWidget {
               return EmailItem(
                 key: ValueKey(emails[index]['subject']),
                 email: emails[index],
+                currentLabel: currentLabel,
                 onEmailUpdated: onEmailUpdated,
               );
             },

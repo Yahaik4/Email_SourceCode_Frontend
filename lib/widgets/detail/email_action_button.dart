@@ -2,7 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:testabc/main.dart';
 
 class EmailActionButtons extends StatelessWidget {
-  const EmailActionButtons({Key? key}) : super(key: key);
+  final VoidCallback? onReply;
+  final VoidCallback? onReplyAll;
+  final VoidCallback? onForward;
+  final bool isSentByUser;
+  final bool hasReplies;
+
+  const EmailActionButtons({
+    Key? key,
+    this.onReply,
+    this.onReplyAll,
+    this.onForward,
+    required this.isSentByUser,
+    required this.hasReplies,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -16,30 +29,27 @@ class EmailActionButtons extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _ActionButton(
-            icon: Icons.reply_outlined,
-            label: 'Reply',
-            onTap: () {
-              // TODO: Implement reply functionality
-            },
-            isDarkMode: isDarkMode,
-            theme: theme,
-          ),
-          _ActionButton(
-            icon: Icons.reply_all_outlined,
-            label: 'Reply all',
-            onTap: () {
-              // TODO: Implement reply all functionality
-            },
-            isDarkMode: isDarkMode,
-            theme: theme,
-          ),
+          // Show Reply and Reply All for received emails or sent emails with replies
+          if (!isSentByUser || hasReplies) ...[
+            _ActionButton(
+              icon: Icons.reply_outlined,
+              label: 'Reply',
+              onTap: onReply ?? () {},
+              isDarkMode: isDarkMode,
+              theme: theme,
+            ),
+            _ActionButton(
+              icon: Icons.reply_all_outlined,
+              label: 'Reply all',
+              onTap: onReplyAll ?? () {},
+              isDarkMode: isDarkMode,
+              theme: theme,
+            ),
+          ],
           _ActionButton(
             icon: Icons.forward_outlined,
             label: 'Forward',
-            onTap: () {
-              // TODO: Implement forward functionality
-            },
+            onTap: onForward ?? () {},
             isDarkMode: isDarkMode,
             theme: theme,
           ),

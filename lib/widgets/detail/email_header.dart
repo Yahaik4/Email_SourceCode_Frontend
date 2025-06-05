@@ -118,7 +118,7 @@ class EmailHeader extends StatelessWidget {
                               children: [
                                 if (groupedRecipientEmails['to']!.isNotEmpty) ...[
                                   Text(
-                                    'TO:',
+                                    'To:',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
@@ -141,7 +141,7 @@ class EmailHeader extends StatelessWidget {
                                 ],
                                 if (groupedRecipientEmails['cc']!.isNotEmpty) ...[
                                   Text(
-                                    'CC:',
+                                    'Cc:',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,
@@ -164,7 +164,7 @@ class EmailHeader extends StatelessWidget {
                                 ],
                                 if (groupedRecipientEmails['bcc']!.isNotEmpty) ...[
                                   Text(
-                                    'BCC:',
+                                    'Bcc:',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w500,

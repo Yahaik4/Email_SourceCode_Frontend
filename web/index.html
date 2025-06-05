@@ -19,17 +19,20 @@
   <title>testabc</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- ✅ Thêm CSS để chỉnh vị trí và độ mờ của reCAPTCHA -->
+  <!-- ✅ CSS để chỉnh vị trí và độ mờ của reCAPTCHA -->
   <style>
     .grecaptcha-badge {
       bottom: 10px !important;
       right: 10px !important;
-      opacity: 0.3; /* Làm mờ */
+      opacity: 0.3;
       z-index: 9999;
     }
   </style>
 </head>
 <body>
+  <!-- ✅ Bổ sung phần tử reCAPTCHA container -->
+  <div id="recaptcha-container"></div>
+
   <!-- Firebase SDK scripts and initialization -->
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-messaging.js"></script>
@@ -55,6 +58,7 @@
         });
     }
   </script>
+
   <!-- Flutter bootstrap script -->
   <script src="flutter_bootstrap.js" async></script>
 </body>

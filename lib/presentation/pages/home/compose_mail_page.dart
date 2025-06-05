@@ -28,8 +28,23 @@ class Attachment {
 
 class ComposeMailPage extends StatefulWidget {
   final String? emailId; // For editing drafts
+  final String? replyToEmailId; // For replying to an email
+  final String? initialSubject; // Pre-filled subject for replies/forwards
+  final List<String>? initialTo; // Pre-filled "To" recipients for replies
+  final List<String>? initialCc; // Pre-filled "CC" recipients for replies
+  final String? initialBody; // Pre-filled body for replies/forwards
+  final List<Attachment>? initialAttachments; // Pre-filled attachments for forwards
 
-  const ComposeMailPage({Key? key, this.emailId}) : super(key: key);
+  const ComposeMailPage({
+    Key? key,
+    this.emailId,
+    this.replyToEmailId,
+    this.initialSubject,
+    this.initialTo,
+    this.initialCc,
+    this.initialBody,
+    this.initialAttachments,
+  }) : super(key: key);
 
   @override
   State<ComposeMailPage> createState() => _ComposeMailPageState();
@@ -41,7 +56,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   final TextEditingController bccController = TextEditingController();
   final TextEditingController subjectController = TextEditingController();
   final TextEditingController bodyController = TextEditingController();
-  final List<Map<String, String>> toRecipients = []; // Store {id, email}
+  final List<Map<String, String>> toRecipients = [];
   final List<Map<String, String>> ccRecipients = [];
   final List<Map<String, String>> bccRecipients = [];
   final List<Attachment> attachments = [];
@@ -55,6 +70,77 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     super.initState();
     if (widget.emailId != null) {
       _fetchEmailDetails(widget.emailId!);
+    }
+    if (widget.initialSubject != null) {
+      subjectController.text = widget.initialSubject!;
+    }
+    if (widget.initialBody != null) {
+      bodyController.text = widget.initialBody!;
+    }
+    if (widget.initialTo != null && widget.initialTo!.isNotEmpty) {
+      _initializeRecipients();
+    }
+    if (widget.initialCc != null && widget.initialCc!.isNotEmpty) {
+      _initializeRecipients();
+    }
+    if (widget.initialAttachments != null) {
+      setState(() {
+        attachments.addAll(widget.initialAttachments!);
+      });
+    }
+  }
+
+  Future<void> _initializeRecipients() async {
+    setState(() {
+      _isLoading = true; // Show loading indicator while fetching recipients
+    });
+
+    try {
+      // Initialize To recipients
+      final List<Map<String, String>> newToRecipients = [];
+      if (widget.initialTo != null && widget.initialTo!.isNotEmpty) {
+        for (final email in widget.initialTo!) {
+          if (_isValidEmail(email)) {
+            final userId = await _fetchUserIdByEmail(email);
+            if (userId != null && !newToRecipients.any((r) => r['email'] == email)) {
+              newToRecipients.add({'id': userId, 'email': email});
+            }
+          }
+        }
+      }
+
+      // Initialize CC recipients
+      final List<Map<String, String>> newCcRecipients = [];
+      if (widget.initialCc != null && widget.initialCc!.isNotEmpty) {
+        for (final email in widget.initialCc!) {
+          if (_isValidEmail(email)) {
+            final userId = await _fetchUserIdByEmail(email);
+            if (userId != null &&
+                !newToRecipients.any((r) => r['email'] == email) &&
+                !newCcRecipients.any((r) => r['email'] == email)) {
+              newCcRecipients.add({'id': userId, 'email': email});
+            }
+          }
+        }
+      }
+
+      // Update state in a single batch
+      setState(() {
+        toRecipients.clear(); // Clear existing recipients to avoid duplicates
+        ccRecipients.clear();
+        toRecipients.addAll(newToRecipients);
+        ccRecipients.addAll(newCcRecipients);
+        toController.clear();
+        ccController.clear();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error initializing recipients: $e')),
+      );
     }
   }
 
@@ -102,7 +188,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({'email': email})
+        body: jsonEncode({'email': email}),
       ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
@@ -227,7 +313,6 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     return lookupMimeType(fileName) ?? 'application/octet-stream';
   }
 
-  // Check if any fields are filled
   bool _hasContent() {
     return toRecipients.isNotEmpty ||
         ccRecipients.isNotEmpty ||
@@ -285,6 +370,9 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         updateRequest.fields['subject'] = subjectController.text;
         updateRequest.fields['body'] = bodyController.text;
         updateRequest.fields['recipients'] = recipientsJson;
+        if (widget.replyToEmailId != null) {
+          updateRequest.fields['replyToEmailId'] = widget.replyToEmailId!;
+        }
 
         if (attachments.isNotEmpty) {
           if (kIsWeb) {
@@ -363,10 +451,12 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
 
         request.headers['Authorization'] = 'Bearer $token';
         request.fields['subject'] = subjectController.text;
-        request.fields['body'] = bodyController.text;
+        request.fields['body'] = bodyController.text; 
         request.fields['recipients'] = recipientsJson;
+        if (widget.replyToEmailId != null) {
+          request.fields['replyToEmailId'] = widget.replyToEmailId!;
+        }
 
-        // Include attachments
         if (attachments.isNotEmpty) {
           if (kIsWeb) {
             for (var attachment in attachments) {
@@ -466,7 +556,9 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       if (recipients.isNotEmpty) {
         request.fields['recipients'] = recipientsJson;
       }
-      
+      if (widget.replyToEmailId != null) {
+        request.fields['replyToEmailId'] = widget.replyToEmailId!;
+      }
 
       if (attachments.isNotEmpty) {
         if (kIsWeb) {
@@ -519,7 +611,6 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       );
     }
   }
-
 
   Future<void> _attachFile() async {
     const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
@@ -583,19 +674,22 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       return;
     }
 
-    setState(() {
-      final recipient = {'id': email, 'email': email}; // Use email as id for drafts
-      if (field == 'to' && !toRecipients.any((r) => r['email'] == email)) {
-        toRecipients.add(recipient);
-        toController.clear();
-      } else if (field == 'cc' && !ccRecipients.any((r) => r['email'] == email)) {
-        ccRecipients.add(recipient);
-        ccController.clear();
-      } else if (field == 'bcc' && !bccRecipients.any((r) => r['email'] == email)) {
-        bccRecipients.add(recipient);
-        bccController.clear();
-      }
-    });
+    final userId = await _fetchUserIdByEmail(email);
+      if (userId == null) return;
+
+      setState(() {
+        final recipient = {'id': userId, 'email': email};
+        if (field == 'to' && !toRecipients.any((r) => r['email'] == email)) {
+          toRecipients.add(recipient);
+          toController.clear();
+        } else if (field == 'cc' && !ccRecipients.any((r) => r['email'] == email)) {
+          ccRecipients.add(recipient);
+          ccController.clear();
+        } else if (field == 'bcc' && !bccRecipients.any((r) => r['email'] == email)) {
+          bccRecipients.add(recipient);
+          bccController.clear();
+        }
+      });
   }
 
   @override
@@ -615,7 +709,11 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         appBar: AppBar(
           backgroundColor: theme.scaffoldBackgroundColor,
           title: Text(
-            widget.emailId != null ? 'Edit Draft' : 'Compose email',
+            widget.emailId != null
+                ? 'Edit Draft'
+                : widget.replyToEmailId != null
+                    ? 'Reply'
+                    : 'Compose email',
             style: theme.textTheme.titleLarge!.copyWith(
               fontSize: 22,
               fontFamily: 'Inter',
@@ -654,7 +752,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
                         controller: bodyController,
                         maxLines: 10,
                         decoration: InputDecoration(
-                          labelText: 'Compose email',
+                          labelText: widget.replyToEmailId != null ? 'Reply' : 'Compose email',
                           border: theme.inputDecorationTheme.border,
                           enabledBorder: theme.inputDecorationTheme.enabledBorder,
                           focusedBorder: theme.inputDecorationTheme.focusedBorder,
