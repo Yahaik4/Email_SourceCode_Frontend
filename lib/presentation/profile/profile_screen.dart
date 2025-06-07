@@ -8,7 +8,7 @@ import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/config/api_config.dart';
 import 'dart:convert';
 import 'package:testabc/main.dart';
-import 'package:flutter/foundation.dart'; // For kIsWeb
+import 'package:flutter/foundation.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -19,7 +19,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  File? _image; // For mobile
+  File? _image;
   final ImagePicker _picker = ImagePicker();
   bool _isEditing = false;
   bool _isLoading = false;
@@ -30,24 +30,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
 
-  Map<String, dynamic>? _userData; // Lưu dữ liệu người dùng từ API
+  Map<String, dynamic>? _userData;
   bool _twoFactorEnabled = false;
   bool _notificationEnabled = false;
-  double _fontSize = 14; // Giá trị mặc định
-  String _fontFamily = 'Roboto'; // Giá trị mặc định
-  bool _tempDarkMode = false; // Biến tạm thời cho trạng thái Dark Mode
+  double _fontSize = 14;
+  String _fontFamily = 'Roboto';
+  bool _tempDarkMode = false;
 
-  // Danh sách tùy chọn cho font size và font family
   final List<double> _fontSizeOptions = [12, 14, 16, 18];
   final List<String> _fontFamilyOptions = ['Roboto', 'Inter', 'OpenSans', 'Lato'];
 
   @override
   void initState() {
     super.initState();
-    _fetchUserData(); // Gọi API để lấy thông tin người dùng, bao gồm avatar
+    _fetchUserData();
   }
 
-  // Hàm lấy thông tin người dùng từ API
   Future<void> _fetchUserData() async {
     setState(() {
       _isLoading = true;
@@ -84,8 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _notificationEnabled = userData['metadata']['setting']['notification_enabled'] ?? false;
           _fontSize = (userData['metadata']['setting']['font_size'] ?? 14).toDouble();
           _fontFamily = userData['metadata']['setting']['font_family'] ?? 'Roboto';
-          _tempDarkMode = userData['metadata']['setting']['theme'] == 'Dark'; // Khởi tạo _tempDarkMode
-          // Đồng bộ theme từ API
+          _tempDarkMode = userData['metadata']['setting']['theme'] == 'Dark';
           if (userData['metadata']['setting']['theme'] == 'Dark') {
             if (!themeProvider.isDarkMode) themeProvider.toggleTheme();
           } else {
@@ -107,8 +104,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // Hàm cập nhật profile qua API
   Future<void> _updateProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -130,22 +128,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'notification_enabled': _notificationEnabled,
         'font_size': _fontSize,
         'font_family': _fontFamily,
-        'theme': _tempDarkMode ? 'Dark' : 'White', // Sử dụng _tempDarkMode
+        'theme': _tempDarkMode ? 'Dark' : 'White',
       };
 
-      final request = http.MultipartRequest(
+      final profileRequest = http.MultipartRequest(
         'POST',
         Uri.parse('${ApiConfig.baseUrl}/api/users/update-profile'),
       );
 
-      request.headers['Authorization'] = 'Bearer $token';
-      request.fields['username'] = _usernameController.text;
-      request.fields['setting'] = jsonEncode(settings);
+      profileRequest.headers['Authorization'] = 'Bearer $token';
+      profileRequest.fields['username'] = _usernameController.text;
+      profileRequest.fields['setting'] = jsonEncode(settings);
 
-      // Xử lý upload ảnh
       if (kIsWeb) {
         if (_imageBytes != null) {
-          request.files.add(
+          profileRequest.files.add(
             http.MultipartFile.fromBytes(
               'avatar',
               _imageBytes!,
@@ -159,7 +156,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final imageBytes = await _image!.readAsBytes();
           final fileName = _image!.path.split('/').last;
 
-          request.files.add(
+          profileRequest.files.add(
             http.MultipartFile.fromBytes(
               'avatar',
               imageBytes,
@@ -170,13 +167,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      final response = await request.send().timeout(const Duration(seconds: 10));
-      final responseBody = await response.stream.bytesToString();
+      final profileResponse = await profileRequest.send().timeout(const Duration(seconds: 10));
+      final profileResponseBody = await profileResponse.stream.bytesToString();
 
-      if (response.statusCode == 200) {
-        // Cập nhật theme nếu cần
+      if (profileResponse.statusCode == 200) {
         if (_tempDarkMode != themeProvider.isDarkMode) {
-          themeProvider.toggleTheme(); // Chỉ toggle theme nếu trạng thái thay đổi
+          themeProvider.toggleTheme();
         }
         setState(() {
           _isLoading = false;
@@ -195,7 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await _fetchUserData();
       } else {
         setState(() {
-          _errorMessage = jsonDecode(responseBody)['msg'] ?? 'Failed to update profile';
+          _errorMessage = jsonDecode(profileResponseBody)['msg'] ?? 'Failed to update profile';
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -227,6 +223,163 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final TextEditingController newPasswordController = TextEditingController();
+    final TextEditingController confirmPasswordController = TextEditingController();
+    String? errorMessage;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: ThemeProvider.of(context).isDarkMode
+                  ? const Color(0xFF3C3C48)
+                  : Colors.grey[300],
+              title: Text(
+                'Change Password',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontSize: 18,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: newPasswordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      hintText: 'Enter new password',
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Theme.of(context).iconTheme.color ?? Colors.grey,
+                        ),
+                      ),
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: confirmPasswordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      hintText: 'Confirm new password',
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: Theme.of(context).iconTheme.color ?? Colors.grey,
+                        ),
+                      ),
+                    ),
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  if (errorMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        errorMessage!,
+                        style: TextStyle(
+                          color: Colors.red.shade400,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: Text(
+                    'Cancel',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).primaryColor,
+                        ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    if (newPasswordController.text.isEmpty) {
+                      setDialogState(() {
+                        errorMessage = 'Please enter a new password';
+                      });
+                      return;
+                    }
+                    if (newPasswordController.text.length < 6) {
+                      setDialogState(() {
+                        errorMessage = 'Password must be at least 6 characters';
+                      });
+                      return;
+                    }
+                    if (newPasswordController.text != confirmPasswordController.text) {
+                      setDialogState(() {
+                        errorMessage = 'Passwords do not match';
+                      });
+                      return;
+                    }
+
+                    // Call API to update password
+                    try {
+                      final token = await SessionManager.getToken();
+                      if (token == null) {
+                        setDialogState(() {
+                          errorMessage = 'No token found. Please login again.';
+                        });
+                        return;
+                      }
+
+                      final userId = JwtDecoder.decode(token)['sub'];
+                      final response = await http.put(
+                        Uri.parse('${ApiConfig.baseUrl}/api/auth/$userId/password'),
+                        headers: {
+                          'Authorization': 'Bearer $token',
+                          'Content-Type': 'application/json',
+                        },
+                        body: jsonEncode({'password': newPasswordController.text}),
+                      ).timeout(const Duration(seconds: 10));
+
+                      if (response.statusCode == 200) {
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Password updated successfully'),
+                            backgroundColor: ThemeProvider.of(context).isDarkMode
+                                ? const Color(0xFF9146FF)
+                                : Colors.green,
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        );
+                      } else {
+                        setDialogState(() {
+                          errorMessage = jsonDecode(response.body)['msg'] ?? 'Failed to update password';
+                        });
+                      }
+                    } catch (e) {
+                      setDialogState(() {
+                        errorMessage = 'Error: $e';
+                      });
+                    }
+                  },
+                  child: Text(
+                    'Save',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).primaryColor,
+                        ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -241,8 +394,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (kIsWeb) {
         final bytes = await pickedFile.readAsBytes();
         setState(() {
-          _imageBytes = bytes; // Thêm biến mới để lưu bytes trên web
-          _image = null; // Đặt _image về null trên web
+          _imageBytes = bytes;
+          _image = null;
         });
       } else {
         setState(() {
@@ -270,7 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               end: Alignment.bottomRight,
               colors: themeProvider.isDarkMode
                   ? [const Color(0xFF1F1F2A), const Color(0xFF2C2C38)]
-                  : [Colors.grey.shade100, Colors.grey.shade300], // Gradient Light Mode được chỉnh sửa
+                  : [Colors.grey.shade100, Colors.grey.shade300],
             ),
           ),
           child: _isLoading
@@ -315,11 +468,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           IconButton(
             onPressed: () {
-              setState(() {
-                _isEditing = !_isEditing;
-              });
+              if (_isEditing) {
+                if (_formKey.currentState!.validate()) {
+                  _updateProfile();
+                }
+              } else {
+                setState(() {
+                  _isEditing = true;
+                });
+              }
             },
-            icon: Icon(_isEditing ? Icons.check : Icons.edit),
+            icon: Icon(_isEditing ? Icons.save : Icons.edit),
           ),
         ],
       ),
@@ -486,6 +645,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             SizedBox(height: isSmallScreen ? 16 : 24),
+            _buildPasswordField(isSmallScreen),
+            SizedBox(height: isSmallScreen ? 16 : 24),
             Text(
               'Settings',
               style: TextStyle(
@@ -538,16 +699,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               trailing: DropdownButton<double>(
                 value: _fontSize,
                 style: TextStyle(
-                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Set dropdown text color
+                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                 ),
-                dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white, // Set dropdown background
+                dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white,
                 items: _fontSizeOptions.map((size) {
                   return DropdownMenuItem<double>(
                     value: size,
                     child: Text(
                       '$size',
                       style: TextStyle(
-                        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Ensure item text follows theme
+                        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                       ),
                     ),
                   );
@@ -563,41 +724,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     : null,
               ),
             ),
-            ListTile(
-              title: Text(
-                'Font Family',
-                style: TextStyle(
-                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
-                ),
-              ),
-              trailing: DropdownButton<String>(
-                value: _fontFamily,
-                style: TextStyle(
-                  color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Set dropdown text color
-                ),
-                dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white, // Set dropdown background
-                items: _fontFamilyOptions.map((font) {
-                  return DropdownMenuItem<String>(
-                    value: font,
-                    child: Text(
-                      font,
-                      style: TextStyle(
-                        color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87, // Ensure item text follows theme
-                      ),
-                    ),
-                  );
-                }).toList(),
-                onChanged: _isEditing
-                    ? (value) {
-                        if (value != null) {
-                          setState(() {
-                            _fontFamily = value;
-                          });
-                        }
-                      }
-                    : null,
-              ),
-            ),
+            // ListTile(
+            //   title: Text(
+            //     'Font Family',
+            //     style: TextStyle(
+            //       color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+            //     ),
+            //   ),
+            //   trailing: DropdownButton<String>(
+            //     value: _fontFamily,
+            //     style: TextStyle(
+            //       color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+            //     ),
+            //     dropdownColor: themeProvider.isDarkMode ? const Color(0xFF2C2C38) : Colors.white,
+            //     items: _fontFamilyOptions.map((font) {
+            //       return DropdownMenuItem<String>(
+            //         value: font,
+            //         child: Text(
+            //           font,
+            //           style: TextStyle(
+            //             color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+            //           ),
+            //         ),
+            //       );
+            //     }).toList(),
+            //     onChanged: _isEditing
+            //         ? (value) {
+            //             if (value != null) {
+            //               setState(() {
+            //                 _fontFamily = value;
+            //               });
+            //             }
+            //           }
+            //         : null,
+            //   ),
+            // ),
             SwitchListTile(
               title: Text(
                 'Dark Mode',
@@ -605,11 +766,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                 ),
               ),
-              value: _tempDarkMode, // Sử dụng _tempDarkMode
+              value: _tempDarkMode,
               onChanged: _isEditing
                   ? (value) {
                       setState(() {
-                        _tempDarkMode = value; // Cập nhật trạng thái tạm thời
+                        _tempDarkMode = value;
                       });
                     }
                   : null,
@@ -623,7 +784,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: ElevatedButton(
                   onPressed: () {
                     if (_formKey.currentState!.validate()) {
-                      _updateProfile(); // Gọi API để cập nhật profile
+                      _updateProfile();
                     }
                   },
                   child: const Text(
@@ -635,10 +796,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
               ),
+              SizedBox(height: isSmallScreen ? 12 : 16),
+              SizedBox(
+                width: double.infinity,
+                height: isSmallScreen ? 50 : 60,
+                child: OutlinedButton(
+                  onPressed: () {
+                    setState(() {
+                      _isEditing = false;
+                      _fetchUserData();
+                    });
+                  },
+                  child: const Text(
+                    'CANCEL',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPasswordField(bool isSmallScreen) {
+    final themeProvider = ThemeProvider.of(context);
+    return Stack(
+      alignment: Alignment.centerRight,
+      children: [
+        TextFormField(
+          enabled: false,
+          style: TextStyle(
+            color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+          ),
+          decoration: InputDecoration(
+            labelText: 'Password',
+            prefixIcon: Icon(
+              Icons.lock_outline,
+              color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            hintText: '************',
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: IconButton(
+            icon: Icon(
+              Icons.edit,
+              color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+            ),
+            onPressed: _showChangePasswordDialog,
+            splashRadius: 20,
+          ),
+        ),
+      ],
     );
   }
 
@@ -658,7 +877,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,),
+        prefixIcon: Icon(icon, color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 12,

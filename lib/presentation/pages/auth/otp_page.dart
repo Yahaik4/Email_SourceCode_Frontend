@@ -37,7 +37,8 @@ class _OtpPageState extends State<OtpPage> {
     String? password,
     String? userId,
     PhoneAuthCredential? autoCredential,
-    String? loginToken, // Token from login flow
+    String? loginToken,
+    bool isResetPassword,
   ) async {
     if (!_formKey.currentState!.validate() && autoCredential == null) return;
 
@@ -55,7 +56,12 @@ class _OtpPageState extends State<OtpPage> {
 
       final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
       if (userCredential.user != null) {
-        if (email != null && username != null && password != null) {
+        if (isResetPassword) {
+          // Password reset flow
+          Navigator.pushNamed(context, '/reset-password', arguments: {
+            'userId': userId,
+          });
+        } else if (email != null && username != null && password != null) {
           // Register flow
           final response = await http.post(
             Uri.parse('${ApiConfig.baseUrl}/api/auth/register'),
@@ -71,14 +77,13 @@ class _OtpPageState extends State<OtpPage> {
           if (response.statusCode == 200) {
             final responseData = jsonDecode(response.body);
             if (responseData['statusCode'] == 200) {
-              // Do NOT store token or set logged-in state
               CustomSnackBar.show(
                 context,
                 message: 'Registration successful! Please log in.',
                 borderColor: const Color(0xFF9146FF),
               );
               await Future.delayed(const Duration(seconds: 1));
-              Navigator.pushReplacementNamed(context, '/login'); // Redirect to login
+              Navigator.pushReplacementNamed(context, '/login');
             } else {
               setState(() {
                 _errorMessage = 'Registration failed: ${responseData['msg'] ?? 'Unknown error'}';
@@ -91,7 +96,6 @@ class _OtpPageState extends State<OtpPage> {
           }
         } else if (userId != null && loginToken != null) {
           // Login flow with 2FA
-          // Store token only after successful OTP verification
           await _storeToken(loginToken);
           await SessionManager.setLoggedIn(true);
           CustomSnackBar.show(context, message: 'Login successful!', borderColor: const Color(0xFF9146FF));
@@ -114,7 +118,7 @@ class _OtpPageState extends State<OtpPage> {
     }
   }
 
-  Future<void> _resendOtp(String phoneNumber, String userId, String? email, String? username, String? password, String? loginToken) async {
+  Future<void> _resendOtp(String phoneNumber, String userId, String? email, String? username, String? password, String? loginToken, bool isResetPassword) async {
     setState(() {
       _isResending = true;
       _errorMessage = null;
@@ -131,7 +135,8 @@ class _OtpPageState extends State<OtpPage> {
         'email': email,
         'username': username,
         'password': password,
-        'token': loginToken, // Pass token for login flow
+        'token': loginToken,
+        'isResetPassword': isResetPassword,
       },
       setLoading: (value) => setState(() => _isResending = value),
     );
@@ -153,11 +158,11 @@ class _OtpPageState extends State<OtpPage> {
     final String? password = arguments['password'];
     final String? userId = arguments['userId'];
     final PhoneAuthCredential? autoCredential = arguments['autoCredential'];
-    final String? loginToken = arguments['token']; // Token from login flow
+    final String? loginToken = arguments['token'];
+    final bool isResetPassword = arguments['isResetPassword'] ?? false;
 
     return WillPopScope(
       onWillPop: () async {
-        // Clear token if user navigates back to prevent unauthorized access
         await _clearToken();
         return true;
       },
@@ -254,7 +259,7 @@ class _OtpPageState extends State<OtpPage> {
                                 child: ElevatedButton(
                                   onPressed: _isLoading || _isResending
                                       ? null
-                                      : () => _resendOtp(phoneNumber, userId ?? '', email, username, password, loginToken),
+                                      : () => _resendOtp(phoneNumber, userId ?? '', email, username, password, loginToken, isResetPassword),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color.fromARGB(255, 89, 49, 154),
                                     foregroundColor: Colors.white,
@@ -280,7 +285,7 @@ class _OtpPageState extends State<OtpPage> {
                                 child: ElevatedButton(
                                   onPressed: _isLoading || _isResending
                                       ? null
-                                      : () => _verifyOtp(verificationId, phoneNumber, email, username, password, userId, autoCredential, loginToken),
+                                      : () => _verifyOtp(verificationId, phoneNumber, email, username, password, userId, autoCredential, loginToken, isResetPassword),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF9146FF),
                                     foregroundColor: Colors.white,
@@ -308,7 +313,6 @@ class _OtpPageState extends State<OtpPage> {
                             onPressed: _isLoading || _isResending
                                 ? null
                                 : () async {
-                                    // Clear token when navigating back
                                     await _clearToken();
                                     Navigator.pop(context);
                                   },

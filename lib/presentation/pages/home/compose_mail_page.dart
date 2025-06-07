@@ -4,11 +4,14 @@ import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:mime/mime.dart';
+import 'package:testabc/main.dart';
 import 'dart:io';
 import 'dart:convert';
 import 'package:universal_html/html.dart' as html;
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:jwt_decoder/jwt_decoder.dart'; // Added for decoding JWT
 
 class Attachment {
   final String originalName;
@@ -55,19 +58,24 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
   final TextEditingController ccController = TextEditingController();
   final TextEditingController bccController = TextEditingController();
   final TextEditingController subjectController = TextEditingController();
-  final TextEditingController bodyController = TextEditingController();
+  final quill.QuillController _quillController = quill.QuillController.basic();
   final List<Map<String, String>> toRecipients = [];
   final List<Map<String, String>> ccRecipients = [];
   final List<Map<String, String>> bccRecipients = [];
+  bool _isLoading = false;
+  bool _isSending = false;
   final List<Attachment> attachments = [];
   final FocusNode toFocusNode = FocusNode();
   final FocusNode ccFocusNode = FocusNode();
   final FocusNode bccFocusNode = FocusNode();
-  bool _isLoading = false;
+  String _defaultFontFamily = 'Inter';
+  double _defaultFontSize = 16.0;
+  final List<String> _fontFamilyOptions = ['Roboto', 'Inter', 'OpenSans', 'Lato'];
 
   @override
   void initState() {
     super.initState();
+    _fetchUserSettings(); // Fetch user settings
     if (widget.emailId != null) {
       _fetchEmailDetails(widget.emailId!);
     }
@@ -75,7 +83,8 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       subjectController.text = widget.initialSubject!;
     }
     if (widget.initialBody != null) {
-      bodyController.text = widget.initialBody!;
+      // Initialize Quill editor with plain text
+      _quillController.document = quill.Document()..insert(0, widget.initialBody!);
     }
     if (widget.initialTo != null && widget.initialTo!.isNotEmpty) {
       _initializeRecipients();
@@ -90,13 +99,62 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     }
   }
 
+  Future<void> _fetchUserSettings() async {
+    try {
+      final token = await SessionManager.getToken();
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No token found')),
+        );
+        return;
+      }
+
+      // Decode JWT to get userId from 'sub' claim
+      final decodedToken = JwtDecoder.decode(token);
+      final userId = decodedToken['sub']?.toString();
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User ID not found in token')),
+        );
+        return;
+      }
+
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/$userId'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body)['metadata'];
+        final settings = userData['setting'];
+        setState(() {
+          // Ensure font family is in supported options
+          _defaultFontFamily = _fontFamilyOptions.contains(settings['font_family'])
+              ? settings['font_family']
+              : 'Inter';
+          _defaultFontSize = (settings['font_size'] ?? 16).toDouble();
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to fetch user settings')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error fetching user settings: $e')),
+      );
+    }
+  }
+
   Future<void> _initializeRecipients() async {
     setState(() {
-      _isLoading = true; // Show loading indicator while fetching recipients
+      _isLoading = true;
     });
 
     try {
-      // Initialize To recipients
       final List<Map<String, String>> newToRecipients = [];
       if (widget.initialTo != null && widget.initialTo!.isNotEmpty) {
         for (final email in widget.initialTo!) {
@@ -109,7 +167,6 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         }
       }
 
-      // Initialize CC recipients
       final List<Map<String, String>> newCcRecipients = [];
       if (widget.initialCc != null && widget.initialCc!.isNotEmpty) {
         for (final email in widget.initialCc!) {
@@ -124,9 +181,8 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         }
       }
 
-      // Update state in a single batch
       setState(() {
-        toRecipients.clear(); // Clear existing recipients to avoid duplicates
+        toRecipients.clear();
         ccRecipients.clear();
         toRecipients.addAll(newToRecipients);
         ccRecipients.addAll(newCcRecipients);
@@ -148,7 +204,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     try {
       final token = await SessionManager.getToken();
       if (token == null) {
-        return {'id': userId, 'email': userId}; // Fallback
+        return {'id': userId, 'email': userId};
       }
 
       final response = await http.get(
@@ -166,9 +222,9 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'email': userData['email']?.toString() ?? userId,
         };
       }
-      return {'id': userId, 'email': userId}; // Fallback
+      return {'id': userId, 'email': userId};
     } catch (e) {
-      return {'id': userId, 'email': userId}; // Fallback
+      return {'id': userId, 'email': userId};
     }
   }
 
@@ -236,7 +292,6 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         final emailData = jsonDecode(response.body)['metadata'];
         final recipients = (emailData['recipients'] as List? ?? []);
 
-        // Fetch user emails for recipients
         final uniqueRecipientIds = recipients.map((r) => r['recipientId'].toString()).toSet();
         final recipientData = <String, Map<String, String>>{};
         for (final id in uniqueRecipientIds) {
@@ -264,7 +319,20 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
                     'email': recipientData[r['recipientId']]!['email']!,
                   }));
           subjectController.text = emailData['subject'] ?? '';
-          bodyController.text = emailData['body'] ?? '';
+
+          // Khôi phục nội dung richtext từ Quill Delta JSON
+          if (emailData['body'] != null && emailData['body'].isNotEmpty) {
+            try {
+              final deltaJson = jsonDecode(emailData['body']);
+              _quillController.document = quill.Document.fromJson(deltaJson);
+            } catch (e) {
+              // Nếu không phải JSON hợp lệ, chèn văn bản thuần (hỗ trợ tương thích ngược)
+              _quillController.document = quill.Document()..insert(0, emailData['body']);
+            }
+          } else {
+            _quillController.document = quill.Document();
+          }
+
           attachments.addAll((emailData['attachments'] as List? ?? [])
               .map((a) => Attachment(
                     originalName: a['fileName'],
@@ -302,7 +370,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     ccController.dispose();
     bccController.dispose();
     subjectController.dispose();
-    bodyController.dispose();
+    _quillController.dispose();
     toFocusNode.dispose();
     ccFocusNode.dispose();
     bccFocusNode.dispose();
@@ -318,20 +386,33 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         ccRecipients.isNotEmpty ||
         bccRecipients.isNotEmpty ||
         subjectController.text.isNotEmpty ||
-        bodyController.text.isNotEmpty ||
+        !_quillController.document.isEmpty() ||
         attachments.isNotEmpty ||
         toController.text.isNotEmpty ||
         ccController.text.isNotEmpty ||
         bccController.text.isNotEmpty;
   }
 
+  String _getQuillDeltaJson() {
+    return jsonEncode(_quillController.document.toDelta().toJson());
+  }
+
   Future<void> _sendMail() async {
+    if (_isSending) return; // Ngăn gửi nhiều lần khi đang loading
+
+    setState(() {
+      _isSending = true; // Bật trạng thái loading
+    });
+
     try {
       String? token = await SessionManager.getToken();
       if (token == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Authentication token not found. Please log in again.')),
         );
+        setState(() {
+          _isSending = false; // Tắt loading nếu có lỗi
+        });
         return;
       }
 
@@ -353,13 +434,15 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please add at least one recipient in To, Cc, or Bcc.')),
         );
+        setState(() {
+          _isSending = false; // Tắt loading nếu có lỗi
+        });
         return;
       }
 
       String recipientsJson = jsonEncode(recipients);
 
       if (widget.emailId != null) {
-        // Update draft first
         var updateRequest = http.MultipartRequest(
           'POST',
           Uri.parse('${ApiConfig.baseUrl}/api/email/updateDraft'),
@@ -368,7 +451,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         updateRequest.headers['Authorization'] = 'Bearer $token';
         updateRequest.fields['id'] = widget.emailId!;
         updateRequest.fields['subject'] = subjectController.text;
-        updateRequest.fields['body'] = bodyController.text;
+        updateRequest.fields['body'] = _getQuillDeltaJson();
         updateRequest.fields['recipients'] = recipientsJson;
         if (widget.replyToEmailId != null) {
           updateRequest.fields['replyToEmailId'] = widget.replyToEmailId!;
@@ -414,6 +497,9 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(errorMessage)),
           );
+          setState(() {
+            _isSending = false; // Tắt loading
+          });
           return;
         }
 
@@ -451,7 +537,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
 
         request.headers['Authorization'] = 'Bearer $token';
         request.fields['subject'] = subjectController.text;
-        request.fields['body'] = bodyController.text; 
+        request.fields['body'] = _getQuillDeltaJson();
         request.fields['recipients'] = recipientsJson;
         if (widget.replyToEmailId != null) {
           request.fields['replyToEmailId'] = widget.replyToEmailId!;
@@ -489,6 +575,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         final responseBody = await response.stream.bytesToString();
 
         if (response.statusCode == 200) {
+          print(_getQuillDeltaJson);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Email sent successfully with ${attachments.length} attachment(s)'),
@@ -510,6 +597,10 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error sending email: $e')),
       );
+    } finally {
+      setState(() {
+        _isSending = false; // Tắt loading sau khi hoàn thành
+      });
     }
   }
 
@@ -550,8 +641,8 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
       if (subjectController.text.isNotEmpty) {
         request.fields['subject'] = subjectController.text;
       }
-      if (bodyController.text.isNotEmpty) {
-        request.fields['body'] = bodyController.text;
+      if (!_quillController.document.isEmpty()) {
+        request.fields['body'] = _getQuillDeltaJson();
       }
       if (recipients.isNotEmpty) {
         request.fields['recipients'] = recipientsJson;
@@ -675,26 +766,27 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
     }
 
     final userId = await _fetchUserIdByEmail(email);
-      if (userId == null) return;
+    if (userId == null) return;
 
-      setState(() {
-        final recipient = {'id': userId, 'email': email};
-        if (field == 'to' && !toRecipients.any((r) => r['email'] == email)) {
-          toRecipients.add(recipient);
-          toController.clear();
-        } else if (field == 'cc' && !ccRecipients.any((r) => r['email'] == email)) {
-          ccRecipients.add(recipient);
-          ccController.clear();
-        } else if (field == 'bcc' && !bccRecipients.any((r) => r['email'] == email)) {
-          bccRecipients.add(recipient);
-          bccController.clear();
-        }
-      });
+    setState(() {
+      final recipient = {'id': userId, 'email': email};
+      if (field == 'to' && !toRecipients.any((r) => r['email'] == email)) {
+        toRecipients.add(recipient);
+        toController.clear();
+      } else if (field == 'cc' && !ccRecipients.any((r) => r['email'] == email)) {
+        ccRecipients.add(recipient);
+        ccController.clear();
+      } else if (field == 'bcc' && !bccRecipients.any((r) => r['email'] == email)) {
+        bccRecipients.add(recipient);
+        bccController.clear();
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDarkMode = ThemeProvider.of(context).isDarkMode;
     final textStyle = theme.textTheme.bodyMedium!.copyWith(fontFamily: 'Inter');
     final contentPadding = const EdgeInsets.symmetric(vertical: 14, horizontal: 16);
 
@@ -703,7 +795,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
         if (_hasContent()) {
           await _saveDraft();
         }
-        return true; // Allow navigation back
+        return true;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -727,7 +819,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
             ),
             IconButton(
               icon: const Icon(Icons.send),
-              onPressed: _sendMail,
+              onPressed: _isSending ? null : _sendMail,
               tooltip: 'Send',
             ),
           ],
@@ -748,20 +840,79 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
                       const SizedBox(height: 8),
                       _buildTextField('Subject', subjectController, contentPadding),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: bodyController,
-                        maxLines: 10,
-                        decoration: InputDecoration(
-                          labelText: widget.replyToEmailId != null ? 'Reply' : 'Compose email',
-                          border: theme.inputDecorationTheme.border,
-                          enabledBorder: theme.inputDecorationTheme.enabledBorder,
-                          focusedBorder: theme.inputDecorationTheme.focusedBorder,
-                          filled: true,
-                          fillColor: theme.inputDecorationTheme.fillColor,
-                          labelStyle: theme.inputDecorationTheme.labelStyle,
-                          contentPadding: contentPadding,
+                      Container(
+                        decoration: BoxDecoration(
+                          color: theme.inputDecorationTheme.fillColor,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        style: textStyle,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: quill.QuillToolbar.simple(
+                                configurations: quill.QuillSimpleToolbarConfigurations(
+                                  controller: _quillController,
+                                  multiRowsDisplay: false,
+                                  showBoldButton: true,
+                                  showItalicButton: true,
+                                  showUnderLineButton: true,
+                                  showFontFamily: false,
+                                  showFontSize: true,
+                                  showListCheck: false,
+                                  showBackgroundColorButton: false,
+                                  showColorButton: false,
+                                  showListBullets: false,
+                                  showSearchButton: false,
+                                  // fontFamilyValues: {'Roboto' : 'Roboto', 'Inter' : 'Inter', 'OpenSans' : 'OpenSans', 'Lato' : 'Lato'},
+                                  fontSizesValues: {'10': '10', '12': '12', '14': '14', '17': '17', '24': '24'},
+                                  showClipboardCut: false,
+                                  showClipboardCopy: false,
+                                  showClipboardPaste: false,
+                                  showListNumbers: false,
+                                  showAlignmentButtons: false,
+                                  showHeaderStyle: false,
+                                  showLink: false,
+                                  showCodeBlock: false,
+                                  showInlineCode: false,
+                                  showQuote: false,
+                                  showIndent: false,
+                                  showUndo: false,
+                                  showSubscript: false,
+                                  
+                                  showSuperscript: false,
+                                  showRedo: false,
+                                  color: isDarkMode ? Colors.black87 : const Color.fromARGB(195, 184, 183, 183),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              height: 200,
+                              padding: contentPadding,
+                              child: quill.QuillEditor.basic(
+                                configurations: quill.QuillEditorConfigurations(
+                                  controller: _quillController,
+                                  placeholder: widget.replyToEmailId != null ? 'Reply' : 'Compose email',
+                                  customStyles: quill.DefaultStyles(
+                                    paragraph: quill.DefaultTextBlockStyle(
+                                      TextStyle( // Use TextStyle directly
+                                        fontFamily: _defaultFontFamily,
+                                        fontSize: _defaultFontSize,
+                                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                                      ),
+                                      const quill.HorizontalSpacing(8, 8),
+                                      const quill.VerticalSpacing(4, 4),
+                                      const quill.VerticalSpacing(0, 0),
+                                      BoxDecoration(
+                                        border: Border(bottom: BorderSide(color: Colors.blueGrey)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       if (attachments.isNotEmpty) ...[
                         const SizedBox(height: 16),

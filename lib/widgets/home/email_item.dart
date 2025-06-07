@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:http/http.dart' as http;
 import 'package:testabc/config/api_config.dart';
 import 'package:testabc/utils/session_manager.dart';
@@ -10,7 +11,7 @@ import 'package:testabc/main.dart';
 class EmailItem extends StatefulWidget {
   final Map<String, String> email;
   final VoidCallback? onEmailUpdated;
-  final String? currentLabel; // New prop to track if viewing emails in a label
+  final String? currentLabel;
 
   const EmailItem({
     super.key,
@@ -455,11 +456,38 @@ class _EmailItemState extends State<EmailItem> {
         : AssetImage(avatarUrl) as ImageProvider;
 
     final subject = widget.email['subject'] ?? 'No subject';
-    final truncatedSubject = subject.length > 50 ? '${subject.substring(0, 50)}...' : subject;
+    // Làm sạch và cắt ngắn subject
+    final cleanedSubject = subject.replaceAll(RegExp(r'[\n\t]'), ' ').trim();
+    final truncatedSubject =
+        cleanedSubject.length > 50 ? '${cleanedSubject.substring(0, 50)}...' : cleanedSubject;
     final folder = widget.email['folder'];
     final body = widget.email['body'] ?? 'No body';
-    final cleanedBody = body.replaceAll('\t', ' ').replaceAll('\n', ' ').trim();
-    final truncatedBody = cleanedBody.length > 50 ? '${cleanedBody.substring(0, 50)}...' : cleanedBody;
+
+    // Phân tích body thành Quill Delta
+    quill.Document document;
+    try {
+      final deltaJson = jsonDecode(body);
+      document = quill.Document.fromJson(deltaJson);
+    } catch (e) {
+      document = quill.Document()..insert(0, body);
+    }
+
+    // Chuyển QuillDocument thành văn bản thuần để cắt ngắn
+    String plainText = document.toPlainText().replaceAll(RegExp(r'[\n\t]'), ' ').trim();
+    if (plainText.length > 50) {
+      plainText = '${plainText.substring(0, 50)}...';
+      // Tạo lại document với văn bản đã cắt ngắn
+      document = quill.Document()..insert(0, plainText);
+    }
+
+    // Tạo QuillController
+    final quillController = quill.QuillController(
+      document: document,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+
+    // Tạo FocusNode
+    final focusNode = FocusNode();
 
     final isStarred = widget.email['starred'] == 'true';
     final isRead = widget.email['isRead'] == 'true';
@@ -480,7 +508,8 @@ class _EmailItemState extends State<EmailItem> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => EmailDetailScreen(emailId: widget.email['id']!),
+                builder: (context) =>
+                    EmailDetailScreen(emailId: widget.email['id']!),
               ),
             );
           }
@@ -511,7 +540,10 @@ class _EmailItemState extends State<EmailItem> {
                           children: [
                             Text(
                               widget.email['sender'] ?? 'Unknown',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
@@ -536,7 +568,11 @@ class _EmailItemState extends State<EmailItem> {
                       Text(
                         widget.email['time'] ?? '',
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withOpacity(0.6),
                               fontSize: 12,
                             ),
                       ),
@@ -553,142 +589,184 @@ class _EmailItemState extends State<EmailItem> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          truncatedBody,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7),
-                                fontSize: 13,
-                              ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                  SizedBox(
+                    height: 40, // Giới hạn chiều cao cho 2 dòng
+                    child: quill.QuillEditor(
+                      focusNode: focusNode,
+                      configurations: quill.QuillEditorConfigurations(
+                        controller: quillController,
+                        scrollable: false,
+                        autoFocus: false,
+                        expands: false,
+                        enableInteractiveSelection: false, // Vô hiệu hóa chọn văn bản
+                        disableClipboard: true, // Vô hiệu hóa clipboard
+                        padding: const EdgeInsets.all(0),
+                        customStyles: quill.DefaultStyles(
+                          paragraph: quill.DefaultTextBlockStyle(
+                            TextStyle(
+                              fontFamily: 'Inter',
+                              fontSize: 13,
+                              height: 1.2,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withOpacity(0.7),
+                            ),
+                            const quill.HorizontalSpacing(0, 0),
+                            const quill.VerticalSpacing(0, 0),
+                            const quill.VerticalSpacing(0, 0),
+                            null,
+                          ),
                         ),
                       ),
-                      _isLoadingStar ||
-                              _isLoadingTrash ||
-                              _isLoadingDelete ||
-                              _isLoadingAddLabel ||
-                              _isLoadingRemoveLabel
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : PopupMenuButton<String>(
-                              icon: Icon(
-                                Icons.more_vert,
-                                color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                                size: 20,
-                              ),
-                              color: Theme.of(context).popupMenuTheme.color,
-                              onSelected: (value) async {
-                                if (value == 'star') {
-                                  await _toggleStar(context);
-                                } else if (value == 'trash') {
-                                  await _toggleTrash(context);
-                                } else if (value == 'delete') {
-                                  await _deleteEmail(context);
-                                } else if (value == 'add_label') {
-                                  _showAddLabelDialog(context);
-                                } else if (value == 'remove_label') {
-                                  await _removeFromLabel(widget.currentLabel!);
-                                }
-                              },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(
-                                  value: 'star',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.star,
-                                        color: isStarred ? Colors.amber : Colors.grey,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        isStarred ? 'Unstar' : 'Star',
-                                        style: Theme.of(context).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'trash',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        folder == 'trash' ? Icons.restore_from_trash : Icons.delete,
-                                        color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        folder == 'trash' ? 'Restore' : 'Move to Trash',
-                                        style: Theme.of(context).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (folder == 'trash')
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.delete_forever,
-                                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Delete',
-                                          style: Theme.of(context).textTheme.bodyMedium,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                PopupMenuItem(
-                                  value: 'add_label',
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.label_outline,
-                                        color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Add to Label',
-                                        style: Theme.of(context).textTheme.bodyMedium,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (widget.currentLabel != null)
-                                  PopupMenuItem(
-                                    value: 'remove_label',
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.label_off_outlined,
-                                          color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'Remove from Label',
-                                          style: Theme.of(context).textTheme.bodyMedium,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                    ],
+                      scrollController: ScrollController(),
+                    ),
                   ),
                 ],
               ),
             ),
+            _isLoadingStar ||
+                    _isLoadingTrash ||
+                    _isLoadingDelete ||
+                    _isLoadingAddLabel ||
+                    _isLoadingRemoveLabel
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.color
+                          ?.withOpacity(0.6),
+                      size: 20,
+                    ),
+                    color: Theme.of(context).popupMenuTheme.color,
+                    onSelected: (value) async {
+                      if (value == 'star') {
+                        await _toggleStar(context);
+                      } else if (value == 'trash') {
+                        await _toggleTrash(context);
+                      } else if (value == 'delete') {
+                        await _deleteEmail(context);
+                      } else if (value == 'add_label') {
+                        _showAddLabelDialog(context);
+                      } else if (value == 'remove_label') {
+                        await _removeFromLabel(widget.currentLabel!);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: 'star',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.star,
+                              color: isStarred ? Colors.amber : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isStarred ? 'Unstar' : 'Star',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'trash',
+                        child: Row(
+                          children: [
+                            Icon(
+                              folder == 'trash'
+                                  ? Icons.restore_from_trash
+                                  : Icons.delete,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              folder == 'trash' ? 'Restore' : 'Move to Trash',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (folder == 'trash')
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.delete_forever,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color
+                                    ?.withOpacity(0.6),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Delete',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                      PopupMenuItem(
+                        value: 'add_label',
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.label_outline,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withOpacity(0.6),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Add to Label',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (widget.currentLabel != null)
+                        PopupMenuItem(
+                          value: 'remove_label',
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.label_off_outlined,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color
+                                    ?.withOpacity(0.6),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Remove from Label',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
           ],
         ),
       ),
     );
   }
+
 }

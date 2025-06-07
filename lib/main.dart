@@ -38,10 +38,22 @@ class ThemeProvider extends InheritedWidget {
   final bool isDarkMode;
   final VoidCallback toggleTheme;
 
+  // Define color constants for editor
+  final Color editorTextColor;
+  final Color editorPlaceholderColor;
+  final Color editorToolbarIconColor;
+  final Color editorToolbarSelectedBackgroundColor;
+  final Color editorToolbarUnselectedBackgroundColor;
+
   const ThemeProvider({
     Key? key,
     required this.isDarkMode,
     required this.toggleTheme,
+    required this.editorTextColor,
+    required this.editorPlaceholderColor,
+    required this.editorToolbarIconColor,
+    required this.editorToolbarSelectedBackgroundColor,
+    required this.editorToolbarUnselectedBackgroundColor,
     required Widget child,
   }) : super(key: key, child: child);
 
@@ -51,7 +63,12 @@ class ThemeProvider extends InheritedWidget {
 
   @override
   bool updateShouldNotify(ThemeProvider oldWidget) {
-    return isDarkMode != oldWidget.isDarkMode;
+    return isDarkMode != oldWidget.isDarkMode ||
+        editorTextColor != oldWidget.editorTextColor ||
+        editorPlaceholderColor != oldWidget.editorPlaceholderColor ||
+        editorToolbarIconColor != oldWidget.editorToolbarIconColor ||
+        editorToolbarSelectedBackgroundColor != oldWidget.editorToolbarSelectedBackgroundColor ||
+        editorToolbarUnselectedBackgroundColor != oldWidget.editorToolbarUnselectedBackgroundColor;
   }
 }
 
@@ -96,9 +113,20 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    final editorTextColor = _isDarkMode ? Colors.white70 : Colors.black87;
+    final editorPlaceholderColor = _isDarkMode ? Colors.white70.withOpacity(0.6) : Colors.black87.withOpacity(0.6);
+    final editorToolbarIconColor = _isDarkMode ? Colors.white70 : Colors.black87;
+    final editorToolbarSelectedBackgroundColor = _isDarkMode ? Colors.grey[700]! : Colors.grey[300]!;
+    final editorToolbarUnselectedBackgroundColor = Colors.transparent;
+
     return ThemeProvider(
       isDarkMode: _isDarkMode,
       toggleTheme: _toggleTheme,
+      editorTextColor: editorTextColor,
+      editorPlaceholderColor: editorPlaceholderColor,
+      editorToolbarIconColor: editorToolbarIconColor,
+      editorToolbarSelectedBackgroundColor: editorToolbarSelectedBackgroundColor,
+      editorToolbarUnselectedBackgroundColor: editorToolbarUnselectedBackgroundColor,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'Email App',
@@ -134,7 +162,7 @@ class _MyAppState extends State<MyApp> {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.grey[50],
+        fillColor: const Color.fromARGB(255, 228, 227, 227),
         prefixIconColor: Colors.black87,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),

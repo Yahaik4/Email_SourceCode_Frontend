@@ -8,7 +8,7 @@ import 'dart:convert';
 import 'package:testabc/utils/session_manager.dart';
 import 'package:testabc/widgets/home/custom_snackbar.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // Thêm package Firebase Messaging
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -23,43 +23,43 @@ class _LoginPageState extends State<LoginPage> {
   final _passwordController = TextEditingController();
   String? _errorMessage;
   bool _isLoading = false;
-  String? _fcmToken; // Biến lưu FCM Token
+  String? _fcmToken;
 
   @override
   void initState() {
     super.initState();
-    _getFcmToken(); // Lấy FCM Token khi khởi tạo
+    _getFcmToken();
   }
 
-  // Hàm lấy FCM Token
   Future<void> _getFcmToken() async {
     try {
       if (kIsWeb) {
-        // Request permission for Web
         NotificationSettings settings = await FirebaseMessaging.instance.requestPermission();
-
         if (settings.authorizationStatus == AuthorizationStatus.authorized) {
           const vapidKey = 'BLgpg7R8mfUQVGHisBhWfDErrb_x2RBLO6nrXbK3I3mDZBx-pU7Y29cnJjTyJt9Tmz33Wedjy13yrAPs1HTqr1I';
           String? token = await FirebaseMessaging.instance.getToken(vapidKey: vapidKey);
           setState(() {
             _fcmToken = token;
-            _errorMessage = token == null ? 'FCM token is null' : null;
+            if (token == null) {
+              _errorMessage = 'FCM token is null, proceeding without notifications';
+            }
           });
         } else if (settings.authorizationStatus == AuthorizationStatus.denied) {
           setState(() {
-            _errorMessage = 'Notification permission denied. Please enable it in browser settings.';
+            _errorMessage = 'Notification permission denied. You can still log in without notifications.';
           });
         } else {
           setState(() {
-            _errorMessage = 'Notification permission is not granted.';
+            _errorMessage = 'Notification permission not granted. You can still log in without notifications.';
           });
         }
       } else {
-        // Mobile (Android/iOS)
         String? token = await FirebaseMessaging.instance.getToken();
         setState(() {
           _fcmToken = token;
-          _errorMessage = token == null ? 'FCM token is null' : null;
+          if (token == null) {
+            _errorMessage = 'FCM token is null, proceeding without notifications';
+          }
         });
       }
 
@@ -68,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = 'Failed to get FCM token: $e';
+        _errorMessage = 'Failed to get FCM token: $e. You can still log in without notifications.';
       });
     }
   }
@@ -95,14 +95,18 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
+      final body = {
+        'email': _emailController.text.trim(),
+        'password': _passwordController.text.trim(),
+      };
+      if (_fcmToken != null) {
+        body['fcmToken'] = _fcmToken!;
+      }
+
       final loginResponse = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text.trim(),
-          'fcmToken': _fcmToken, // Thêm FCM Token vào body
-        }),
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
       if (loginResponse.statusCode == 200) {
@@ -331,6 +335,14 @@ class _LoginPageState extends State<LoginPage> {
                             style: TextButton.styleFrom(foregroundColor: const Color(0xFF9146FF)),
                             child: const Text(
                               "Don't have an account? Sign Up",
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pushNamed(context, '/forgot-password'),
+                            style: TextButton.styleFrom(foregroundColor: const Color(0xFF9146FF)),
+                            child: const Text(
+                              "Forgot Password?",
                               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
                             ),
                           ),

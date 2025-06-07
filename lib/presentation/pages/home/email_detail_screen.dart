@@ -18,6 +18,7 @@ import 'package:testabc/widgets/detail/email_content.dart';
 import 'package:testabc/widgets/detail/email_header.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:testabc/main.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 class EmailDetailScreen extends StatefulWidget {
   final String emailId;
@@ -127,6 +128,16 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
 
         final isSentByUser = metadata['senderId'] == userId;
 
+        // Chuẩn hóa body thành Quill Delta JSON
+        String bodyJson = metadata['body']?.toString() ?? '';
+        try {
+          jsonDecode(bodyJson); // Kiểm tra JSON hợp lệ
+        } catch (e) {
+          bodyJson = jsonEncode([
+            {'insert': metadata['body']?.toString() ?? ''}
+          ]);
+        }
+
         setState(() {
           email = {
             'avatar': senderData['avatar']?.toString() ?? 'assets/default-avatar.png',
@@ -135,7 +146,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             'subject': metadata['subject']?.toString() ?? '',
             'sender': metadata['senderId']?.toString() ?? '',
             'date': metadata['createdAt']?.toString() ?? '',
-            'body': metadata['body']?.toString() ?? '',
+            'body': bodyJson, // Lưu dưới dạng JSON
             'attachments': jsonEncode(metadata['attachments'] ?? []),
             'groupedRecipientEmails': groupedRecipientEmails,
             'isSentByUser': isSentByUser.toString(),
@@ -164,9 +175,20 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
               },
             );
             final replySenderData = jsonDecode(replySenderResponse.body)['metadata'];
+
+            // Chuẩn hóa body của reply thành Quill Delta JSON
+            String replyBodyJson = reply['body']?.toString() ?? '';
+            try {
+              jsonDecode(replyBodyJson); // Kiểm tra JSON hợp lệ
+            } catch (e) {
+              replyBodyJson = jsonEncode([
+                {'insert': reply['body']?.toString() ?? ''}
+              ]);
+            }
+
             tempReplies.add({
               'senderEmail': replySenderData['email']?.toString() ?? 'unknown@example.com',
-              'body': reply['body']?.toString() ?? '',
+              'body': replyBodyJson, // Lưu dưới dạng JSON
               'date': reply['createdAt']?.toString() ?? '',
               'subject': reply['subject']?.toString() ?? '',
               'id': reply['id']?.toString() ?? '',
@@ -212,11 +234,21 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
             );
             final originalSenderData = jsonDecode(originalSenderResponse.body)['metadata'];
 
+            // Chuẩn hóa body của originalEmail thành Quill Delta JSON
+            String originalBodyJson = originalData['body']?.toString() ?? '';
+            try {
+              jsonDecode(originalBodyJson); // Kiểm tra JSON hợp lệ
+            } catch (e) {
+              originalBodyJson = jsonEncode([
+                {'insert': originalData['body']?.toString() ?? ''}
+              ]);
+            }
+
             setState(() {
               originalEmail = {
                 'senderEmail': originalSenderData['email']?.toString() ?? 'unknown@example.com',
                 'subject': originalData['subject']?.toString() ?? '',
-                'body': originalData['body']?.toString() ?? '',
+                'body': originalBodyJson, // Lưu dưới dạng JSON
                 'date': originalData['createdAt']?.toString() ?? '',
                 'attachments': jsonEncode(originalData['attachments'] ?? []),
               };
@@ -386,6 +418,15 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   void _replyToEmail() {
     if (email == null || userId == null) return;
 
+    // Chuyển đổi body thành văn bản thuần cho reply
+    String replyBody = '';
+    try {
+      final delta = jsonDecode(email!['body']);
+      replyBody = quill.Document.fromJson(delta).toPlainText();
+    } catch (e) {
+      replyBody = email!['body'];
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -393,7 +434,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           replyToEmailId: email!['id'],
           initialSubject: email!['subject'].startsWith('Re:') ? email!['subject'] : 'Re: ${email!['subject']}',
           initialTo: [email!['senderEmail']],
-          initialBody: '\n\nOn ${email!['date']}, ${email!['senderEmail']} wrote:\n> ${email!['body'].replaceAll('\n', '\n> ')}',
+          initialBody: '\n\nOn ${email!['date']}, ${email!['senderEmail']} wrote:\n> ${replyBody.replaceAll('\n', '\n> ')}',
         ),
       ),
     ).then((value) {
@@ -439,6 +480,15 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
         .map((entry) => entry.key)
         .toList();
 
+    // Chuyển đổi body thành văn bản thuần cho reply
+    String replyBody = '';
+    try {
+      final delta = jsonDecode(email!['body']);
+      replyBody = quill.Document.fromJson(delta).toPlainText();
+    } catch (e) {
+      replyBody = email!['body'];
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -447,7 +497,7 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
           initialSubject: email!['subject'].startsWith('Re:') ? email!['subject'] : 'Re: ${email!['subject']}',
           initialTo: toRecipients.isNotEmpty ? toRecipients : [email!['senderEmail']],
           initialCc: ccRecipients,
-          initialBody: '\n\nOn ${email!['date']}, ${email!['senderEmail']} wrote:\n> ${email!['body'].replaceAll('\n', '\n> ')}',
+          initialBody: '\n\nOn ${email!['date']}, ${email!['senderEmail']} wrote:\n> ${replyBody.replaceAll('\n', '\n> ')}',
         ),
       ),
     ).then((value) {
@@ -458,12 +508,21 @@ class _EmailDetailScreenState extends State<EmailDetailScreen> {
   void _forwardEmail() {
     if (email == null) return;
 
+    // Chuyển đổi body thành văn bản thuần cho forward
+    String forwardBody = '';
+    try {
+      final delta = jsonDecode(email!['body']);
+      forwardBody = quill.Document.fromJson(delta).toPlainText();
+    } catch (e) {
+      forwardBody = email!['body'];
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ComposeMailPage(
           initialSubject: email!['subject'].startsWith('Fwd:') ? email!['subject'] : 'Fwd: ${email!['subject']}',
-          initialBody: '\n\n---------- Forwarded message ---------\nFrom: ${email!['senderEmail']}\nDate: ${email!['date']}\nSubject: ${email!['subject']}\n\n${email!['body']}',
+          initialBody: '\n\n---------- Forwarded message ---------\nFrom: ${email!['senderEmail']}\nDate: ${email!['date']}\nSubject: ${email!['subject']}\n\n${forwardBody}',
           initialAttachments: (jsonDecode(email!['attachments']) as List<dynamic>)
               .map((a) => Attachment(
                     originalName: a['fileName'],
