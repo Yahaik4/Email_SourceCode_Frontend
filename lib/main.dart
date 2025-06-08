@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:testabc/core/routes.dart';
 import 'package:testabc/firebase_options.dart';
 import 'package:testabc/utils/session_manager.dart';
@@ -14,7 +15,7 @@ void main() async {
     );
     await GetStorage.init();
     final storage = GetStorage();
-    final isLoggedIn = storage.read('token') != null;
+    final isLoggedIn = await _validateToken(storage);;
     final isDarkMode = storage.read('isDarkMode') ?? true;
     await SessionManager.setLoggedIn(isLoggedIn);
 
@@ -32,6 +33,27 @@ void main() async {
     debugPrint('Initialization failed: $e');
     runApp(const ErrorApp());
   }
+}
+
+Future<bool> _validateToken(GetStorage storage) async {
+  final token = storage.read('token');
+  if (token == null) return false;
+    try {
+      // Example: Validate JWT token expiration
+      bool isExpired = JwtDecoder.isExpired(token);
+      if (isExpired) {
+        await storage.remove('token'); // Clear expired token
+        await SessionManager.setLoggedIn(false);
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      debugPrint('Token validation failed: $e');
+      await storage.remove('token'); // Clear invalid token
+      await SessionManager.setLoggedIn(false);
+      return false;
+    }
 }
 
 class ThemeProvider extends InheritedWidget {
@@ -70,6 +92,9 @@ class ThemeProvider extends InheritedWidget {
         editorToolbarSelectedBackgroundColor != oldWidget.editorToolbarSelectedBackgroundColor ||
         editorToolbarUnselectedBackgroundColor != oldWidget.editorToolbarUnselectedBackgroundColor;
   }
+
+  
+
 }
 
 class MyApp extends StatefulWidget {

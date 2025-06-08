@@ -72,7 +72,7 @@ class _OtpPageState extends State<OtpPage> {
               'phoneNumber': userCredential.user!.phoneNumber,
               'password': password,
             }),
-          ).timeout(const Duration(seconds: 10));
+          );
 
           if (response.statusCode == 200) {
             final responseData = jsonDecode(response.body);
