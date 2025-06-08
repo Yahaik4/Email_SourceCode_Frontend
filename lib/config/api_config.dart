@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class ApiConfig {
   static String get baseUrl {
     if (kIsWeb) {
-      return 'http://localhost:3000'; // HTTP base URL for API calls
+      return 'https://email-sourcecode-backend-951t.onrender.com'; 
     } else if (Platform.isAndroid) {
       return 'http://10.0.2.2:3000';
     } else if (Platform.isIOS) {
@@ -16,13 +16,13 @@ class ApiConfig {
 
   static String get webSocketUrl {
     if (kIsWeb) {
-      return 'ws://localhost:3000'; // WebSocket URL for web
+      return 'wss://email-sourcecode-backend-951t.onrender.com'; // WebSocket URL cho web
     } else if (Platform.isAndroid) {
-      return 'ws://10.0.2.2:3000'; // WebSocket URL for Android emulator
+      return 'ws://10.0.2.2:3000';
     } else if (Platform.isIOS) {
-      return 'ws://127.0.0.1:3000'; // WebSocket URL for iOS simulator
+      return 'ws://127.0.0.1:3000';
     } else {
-      return 'ws://localhost:3000'; // Fallback
+      return 'ws://localhost:3000';
     }
   }
 }
