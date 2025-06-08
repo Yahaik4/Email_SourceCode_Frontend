@@ -125,7 +125,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      );
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body)['metadata'];
@@ -213,7 +213,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 5));
+      );
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body)['metadata'];
@@ -245,7 +245,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 5));
+      );
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body)['metadata'];
@@ -286,7 +286,7 @@ class _ComposeMailPageState extends State<ComposeMailPage> {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      );
 
       if (response.statusCode == 200) {
         final emailData = jsonDecode(response.body)['metadata'];

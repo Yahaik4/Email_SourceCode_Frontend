@@ -68,7 +68,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      );
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
@@ -167,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }
 
-      final profileResponse = await profileRequest.send().timeout(const Duration(seconds: 10));
+      final profileResponse = await profileRequest.send();
       final profileResponseBody = await profileResponse.stream.bytesToString();
 
       if (profileResponse.statusCode == 200) {
@@ -339,7 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           'Content-Type': 'application/json',
                         },
                         body: jsonEncode({'password': newPasswordController.text}),
-                      ).timeout(const Duration(seconds: 10));
+                      );
 
                       if (response.statusCode == 200) {
                         Navigator.of(context).pop();
