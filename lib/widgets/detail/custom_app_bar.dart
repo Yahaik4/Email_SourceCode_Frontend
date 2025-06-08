@@ -159,7 +159,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

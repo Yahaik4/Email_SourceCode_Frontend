@@ -6,6 +6,6 @@ class ApiConfig {
   }
 
   static String get webSocketUrl {
-      return 'wss://email-sourcecode-backend-951t.onrender.com';
+      return 'https://email-sourcecode-backend-951t.onrender.com';
   }
 }
