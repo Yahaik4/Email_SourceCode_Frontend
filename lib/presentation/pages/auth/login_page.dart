@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -107,7 +109,9 @@ class _LoginPageState extends State<LoginPage> {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 20), onTimeout: () {
+        throw TimeoutException('Server đang khởi động, vui lòng thử lại sau giây lát.');
+      });
 
       if (loginResponse.statusCode == 200) {
         final token = await _extractToken(loginResponse);
@@ -123,7 +127,9 @@ class _LoginPageState extends State<LoginPage> {
           headers: {
             'Authorization': 'Bearer $token',
           },
-        ).timeout(const Duration(seconds: 10));
+        ).timeout(const Duration(seconds: 20), onTimeout: () {
+          throw TimeoutException('Server đang khởi động, vui lòng thử lại sau giây lát.');
+        });
 
         if (userResponse.statusCode == 200) {
           final userData = jsonDecode(userResponse.body);

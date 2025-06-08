@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:testabc/config/api_config.dart';
@@ -30,7 +32,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/$userId/password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'password': newPassword}),
-      ).timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 20), onTimeout: () {
+        throw TimeoutException('Server đang khởi động, vui lòng thử lại sau giây lát.');
+      });
 
       if (response.statusCode == 200) {
         await SessionManager.clear();

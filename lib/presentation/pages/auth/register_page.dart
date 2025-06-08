@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:testabc/config/api_config.dart';
@@ -47,7 +49,9 @@ class _RegisterPageState extends State<RegisterPage> {
         body: jsonEncode({
           'email': email,
         }),
-      ).timeout(const Duration(seconds: 20));
+      ).timeout(const Duration(seconds: 20), onTimeout: () {
+        throw TimeoutException('Server đang khởi động, vui lòng thử lại sau giây lát.');
+      });
 
       if (validateResponse.statusCode == 200) {
         final responseData = jsonDecode(validateResponse.body);

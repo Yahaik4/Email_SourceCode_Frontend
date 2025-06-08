@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
@@ -72,7 +74,9 @@ class _OtpPageState extends State<OtpPage> {
               'phoneNumber': userCredential.user!.phoneNumber,
               'password': password,
             }),
-          ).timeout(const Duration(seconds: 20));
+          ).timeout(const Duration(seconds: 20), onTimeout: () {
+            throw TimeoutException('Server đang khởi động, vui lòng thử lại sau giây lát.');
+          });
 
           if (response.statusCode == 200) {
             final responseData = jsonDecode(response.body);
