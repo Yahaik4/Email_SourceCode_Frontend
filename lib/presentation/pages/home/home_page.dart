@@ -440,6 +440,15 @@ class _HomePageState extends State<HomePage> {
     _fetchEmails(_pages[index]);
   }
 
+
+  Future<void> _navigateToProfile(BuildContext context) async {
+    final result = await Navigator.pushNamed(context, '/profile');
+    if (result == true) {
+      // Refresh user data if profile was updated
+      await _fetchUserData();
+    }
+  }
+
   void _onLabelSelected(String labelName) {
     setState(() {
       _selectedIndex = 0;
@@ -461,6 +470,7 @@ class _HomePageState extends State<HomePage> {
         avatarUrl: _avatarUrl,
         onSearch: _handleSearchResults,
         onClearSearch: _clearSearch,
+        onProfileTapped: () => _navigateToProfile(context),
       ),
       drawer: EmailDrawer(
         onItemSelected: _onItemTapped,

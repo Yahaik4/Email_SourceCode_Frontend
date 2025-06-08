@@ -189,6 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         );
         await _fetchUserData();
+        Navigator.pop(context, true); // Signal that profile was updated
       } else {
         setState(() {
           _errorMessage = jsonDecode(profileResponseBody)['msg'] ?? 'Failed to update profile';

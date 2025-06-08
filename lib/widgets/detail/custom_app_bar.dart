@@ -8,12 +8,14 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String? avatarUrl;
   final Function(List<Map<String, String>>, bool) onSearch; // Callback để gửi kết quả tìm kiếm và trạng thái loading
   final VoidCallback onClearSearch; // Callback để hủy tìm kiếm
+  final VoidCallback onProfileTapped;
 
   const CustomAppBar({
     super.key,
     this.avatarUrl,
     required this.onSearch,
     required this.onClearSearch,
+    required this.onProfileTapped,
   });
 
   Future<void> _signOut(BuildContext context) async {
@@ -231,7 +233,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   color: Theme.of(context).popupMenuTheme.color,
                   onSelected: (value) async {
                     if (value == 'profile') {
-                      Navigator.pushNamed(context, '/profile');
+                      onProfileTapped();;
                     } else if (value == 'logout') {
                       showDialog(
                         context: context,
