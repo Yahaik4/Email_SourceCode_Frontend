@@ -107,8 +107,7 @@ class _LoginPageState extends State<LoginPage> {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(body),
-      );
-      // .timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 20));
 
       if (loginResponse.statusCode == 200) {
         final token = await _extractToken(loginResponse);

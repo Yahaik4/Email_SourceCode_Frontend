@@ -32,7 +32,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         Uri.parse('${ApiConfig.baseUrl}/api/users/email'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({"email": _emailController.text.trim()})
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);

@@ -30,7 +30,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         Uri.parse('${ApiConfig.baseUrl}/api/auth/$userId/password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'password': newPassword}),
-      );
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         await SessionManager.clear();
