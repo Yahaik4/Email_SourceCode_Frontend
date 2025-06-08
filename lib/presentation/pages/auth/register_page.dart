@@ -47,7 +47,7 @@ class _RegisterPageState extends State<RegisterPage> {
         body: jsonEncode({
           'email': email,
         }),
-      );
+      ).timeout(const Duration(seconds: 20));
 
       if (validateResponse.statusCode == 200) {
         final responseData = jsonDecode(validateResponse.body);
