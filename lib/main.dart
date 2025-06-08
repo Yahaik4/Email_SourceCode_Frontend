@@ -15,7 +15,7 @@ void main() async {
     );
     await GetStorage.init();
     final storage = GetStorage();
-    final isLoggedIn = await _validateToken(storage);;
+    final isLoggedIn = storage.read('token') != null;
     final isDarkMode = storage.read('isDarkMode') ?? true;
     await SessionManager.setLoggedIn(isLoggedIn);
 
@@ -35,26 +35,26 @@ void main() async {
   }
 }
 
-Future<bool> _validateToken(GetStorage storage) async {
-  final token = storage.read('token');
-  if (token == null) return false;
-    try {
-      // Example: Validate JWT token expiration
-      bool isExpired = JwtDecoder.isExpired(token);
-      if (isExpired) {
-        await storage.remove('token'); // Clear expired token
-        await SessionManager.setLoggedIn(false);
-        return false;
-      }
+// Future<bool> _validateToken(GetStorage storage) async {
+//   final token = storage.read('token');
+//   if (token == null) return false;
+//     try {
+//       // Example: Validate JWT token expiration
+//       bool isExpired = JwtDecoder.isExpired(token);
+//       if (isExpired) {
+//         await storage.remove('token'); // Clear expired token
+//         await SessionManager.setLoggedIn(false);
+//         return false;
+//       }
 
-      return true;
-    } catch (e) {
-      debugPrint('Token validation failed: $e');
-      await storage.remove('token'); // Clear invalid token
-      await SessionManager.setLoggedIn(false);
-      return false;
-    }
-}
+//       return true;
+//     } catch (e) {
+//       debugPrint('Token validation failed: $e');
+//       await storage.remove('token'); // Clear invalid token
+//       await SessionManager.setLoggedIn(false);
+//       return false;
+//     }
+// }
 
 class ThemeProvider extends InheritedWidget {
   final bool isDarkMode;
@@ -129,7 +129,7 @@ class _MyAppState extends State<MyApp> {
         SystemUiOverlayStyle(
           statusBarColor: _isDarkMode ? const Color(0xFF1F1F2A) : Colors.blue.shade900,
           statusBarIconBrightness: _isDarkMode ? Brightness.light : Brightness.dark,
-          systemNavigationBarColor: _isDarkMode ? const Color(0xFF1F1F2A) : Colors.white,
+          systemNavigationBarColor: _isDarkMode ? Colors.grey[700] : Colors.white,
           systemNavigationBarIconBrightness: _isDarkMode ? Brightness.light : Brightness.dark,
         ),
       );

@@ -401,7 +401,7 @@ class _EmailItemState extends State<EmailItem> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: ThemeProvider.of(context).isDarkMode
-              ? const Color(0xFF3C3C48)
+              ? const Color.fromARGB(255, 235, 7, 7)
               : Colors.grey[300],
           title: Text(
             'Add to Label',
