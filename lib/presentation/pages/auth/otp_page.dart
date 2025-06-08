@@ -263,32 +263,6 @@ class _OtpPageState extends State<OtpPage> {
                                 child: ElevatedButton(
                                   onPressed: _isLoading || _isResending
                                       ? null
-                                      : () => _resendOtp(phoneNumber, userId ?? '', email, username, password, loginToken, isResetPassword),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color.fromARGB(255, 89, 49, 154),
-                                    foregroundColor: Colors.white,
-                                    minimumSize: const Size(double.infinity, 48),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    elevation: 2,
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                  ),
-                                  child: _isResending
-                                      ? const SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                        )
-                                      : const Text(
-                                          'Resend',
-                                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
-                                        ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: _isLoading || _isResending
-                                      ? null
                                       : () => _verifyOtp(verificationId, phoneNumber, email, username, password, userId, autoCredential, loginToken, isResetPassword),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF9146FF),
